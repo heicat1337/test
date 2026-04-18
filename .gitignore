@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+
+# Build output
+frontend/dist
+dist
+dist-ssr
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+*.local
+
+# Editor
+.vscode/
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Vite cache
+.vite/
+
+# Claude Code
+.claude/
+
+# Docker
+pgdata/
+
+# GEOFlow runtime data
+backend/data/

@@ -1,0 +1,97 @@
+<template>
+  <a :href="site.url" target="_blank" rel="noopener noreferrer" class="site-card">
+    <div class="card-glow"></div>
+    <div class="card-content">
+      <div class="card-header">
+        <span class="card-icon">{{ site.icon || '🌐' }}</span>
+        <span class="card-name">{{ site.name }}</span>
+      </div>
+      <p class="card-desc">{{ site.description }}</p>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M7 17 17 7M7 7h10v10" />
+      </svg>
+    </div>
+  </a>
+</template>
+
+<script setup lang="ts">
+import type { Site } from '../types'
+defineProps<{ site: Site }>()
+</script>
+
+<style scoped lang="scss">
+.site-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  cursor: pointer;
+  overflow: hidden;
+  transition: all var(--transition-base);
+
+  &:hover {
+    border-color: var(--border-glow);
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+    .card-glow { opacity: 1; }
+    .card-arrow { opacity: 1; transform: translate(0, 0); }
+    .card-name { color: var(--neon-blue); }
+  }
+}
+
+.card-glow {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.card-content { flex: 1; min-width: 0; }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+
+.card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-arrow {
+  position: absolute;
+  top: 14px; right: 14px;
+  opacity: 0;
+  transform: translate(-4px, 4px);
+  transition: all var(--transition-base);
+  color: var(--neon-blue);
+  svg { width: 16px; height: 16px; }
+}
+</style>
