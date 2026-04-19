@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /opt/web3
+cd /opt/web3 || exit 1
 git pull || exit 1
 docker compose down
 docker compose up -d --build
