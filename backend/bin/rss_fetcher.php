@@ -14,6 +14,14 @@ chdir($projectRoot);
 require_once $projectRoot . '/includes/config.php';
 require_once $projectRoot . '/includes/database_admin.php';
 
+// 扩展 keyword 字段以存储完整文章内容
+try {
+    $db->exec("ALTER TABLE titles ALTER COLUMN keyword TYPE TEXT");
+    echo "[" . date('Y-m-d H:i:s') . "] 已扩展 keyword 字段为 TEXT\n";
+} catch (Throwable $e) {
+    // 已经是 TEXT 或其他情况，忽略
+}
+
 $RSS_SOURCES = [
     // 中文
     ['name' => 'BlockBeats 文章',   'url' => 'https://api.theblockbeats.news/v2/rss/article'],
@@ -172,6 +180,7 @@ foreach ($RSS_SOURCES as $source) {
             if ($item['url']) {
                 $keyword .= "\n\n来源: {$item['url']}";
             }
+            $keyword = mb_substr($keyword, 0, 5000);
             $stmt = $db->prepare("INSERT INTO titles (library_id, title, keyword, created_at) VALUES (?, ?, ?, NOW())");
             $stmt->execute([$libraryId, $item['title'], $keyword]);
             $imported++;
