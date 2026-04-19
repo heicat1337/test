@@ -6,9 +6,13 @@ export async function fetchArticles(page = 1, perPage = 12): Promise<ArticleList
     params: { status: 'published', page, per_page: perPage }
   })
   const payload = res.data.data || res.data
+  const pagination = payload.pagination || {}
   return {
     data: payload.items || [],
-    total_pages: payload.pagination?.total_pages || 1,
+    total: pagination.total || 0,
+    page: pagination.page || page,
+    per_page: pagination.per_page || perPage,
+    total_pages: pagination.total_pages || 1,
   }
 }
 
