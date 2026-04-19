@@ -44,8 +44,33 @@ try {
 
     $isAuthLoginRoute = $segments[0] === 'auth' && $method === 'POST' && count($segments) === 2 && $segments[1] === 'login';
     $isNavRoute = $segments[0] === 'nav';
+    $isPublicArticleRoute = $segments[0] === 'articles' && $method === 'GET' && (
+        count($segments) === 1 ||
+        (count($segments) === 3 && $segments[1] === 'by-slug')
+    );
 
-    if ($isNavRoute && $method === 'GET') {
+    if ($isPublicArticleRoute) {
+        if (count($segments) === 1) {
+            $responsePayload = api_build_success_payload($articleService->listArticles(
+                $request->getQueryInt('page', 1),
+                $request->getQueryInt('per_page', 20),
+                [
+                    'status' => $request->getQueryString('status', 'published'),
+                ]
+            ), $requestId);
+            $statusCode = 200;
+        } elseif (count($segments) === 3 && $segments[1] === 'by-slug') {
+            $slug = $segments[2];
+            $stmt = $db->prepare('SELECT * FROM articles WHERE slug = ? AND status = ? LIMIT 1');
+            $stmt->execute([$slug, 'published']);
+            $article = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$article) {
+                throw new ApiException('not_found', '文章不存在', 404);
+            }
+            $responsePayload = api_build_success_payload($article, $requestId);
+            $statusCode = 200;
+        }
+    } elseif ($isNavRoute && $method === 'GET') {
         if (count($segments) === 2 && $segments[1] === 'categories') {
             $cats = $db->query('SELECT * FROM nav_categories ORDER BY sort_order ASC')->fetchAll(PDO::FETCH_ASSOC);
             foreach ($cats as &$cat) {
@@ -77,11 +102,11 @@ try {
             trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))
         ), $requestId);
         $statusCode = 200;
-    } else {
+    } else if (!$isPublicArticleRoute) {
         $authContext = $auth->authenticate($request);
     }
 
-    if ($isAuthLoginRoute || $isNavRoute) {
+    if ($isAuthLoginRoute || $isNavRoute || $isPublicArticleRoute) {
         // no-op, handled above
     } elseif ($segments[0] === 'catalog' && $method === 'GET' && count($segments) === 1) {
         $auth->requireScope($authContext, 'catalog:read');
