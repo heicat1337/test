@@ -102,9 +102,12 @@ function parse_rss(string $xml): array {
             if ($rawHtml === '') {
                 $rawHtml = (string) $item->description;
             }
-            // 提取图片URL
+            // 提取图片URL（去掉查询参数，避免防盗链或格式转换参数导致图片无法显示）
             if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $rawHtml, $imgMatches)) {
-                $images = array_slice($imgMatches[1], 0, 5);
+                $rawImages = array_slice($imgMatches[1], 0, 5);
+                foreach ($rawImages as $imgUrl) {
+                    $images[] = strtok($imgUrl, '?');
+                }
             }
             // 也检查 media:content 和 enclosure 中的图片
             if (empty($images)) {
