@@ -428,28 +428,43 @@ class AIEngine {
     private function generateArticleContent($task, $title_info) {
         $this->touchHeartbeat('preparing_prompt', ['task_id' => (int) $task['id']]);
 
+        // 从 keyword 中提取 RSS 配图并移除，避免 AI 篡改 URL
+        $rssImages = [];
+        $cleanKeyword = $title_info['keyword'] ?: '';
+        if (preg_match('/\[文章配图\]\s*\n((?:图\d+:\s*https?:\/\/[^\n]+\n?)+)/u', $cleanKeyword, $imgBlock)) {
+            preg_match_all('/图\d+:\s*(https?:\/\/[^\s\n]+)/u', $imgBlock[1], $imgUrls);
+            $rssImages = $imgUrls[1] ?? [];
+            $cleanKeyword = str_replace($imgBlock[0], '', $cleanKeyword);
+            $cleanKeyword = trim($cleanKeyword);
+        }
+
         // 准备提示词变量
         $variables = [
             'title' => $title_info['title'],
-            'keyword' => $title_info['keyword'] ?: '',
+            'keyword' => $cleanKeyword,
         ];
-        
+
         // 添加知识库内容
         $knowledgeContext = $this->resolveKnowledgeContext($task, $title_info);
         if ($knowledgeContext !== '') {
             $variables['Knowledge'] = $knowledgeContext;
             $task['resolved_knowledge_context'] = $knowledgeContext;
         }
-        
+
         // 处理提示词
         $processed_prompt = $this->processPromptVariables($task['prompt_content'], $variables);
-        
+
         // 调用AI生成内容
         $this->touchHeartbeat('calling_ai_content', ['task_id' => (int) $task['id']]);
         $content = $this->callAI($task, $processed_prompt);
         $this->assertGeneratedContentIsValid($content, (string) ($title_info['title'] ?? ''));
-        
-        // 处理图片插入
+
+        // 将 RSS 配图插入文章（代码控制，不依赖 AI）
+        if (!empty($rssImages)) {
+            $content = $this->insertRssImages($content, $rssImages);
+        }
+
+        // 处理图片插入（图片库）
         $article_images = [];
         if ($task['image_library_id'] && $task['image_count'] > 0) {
             $this->touchHeartbeat('inserting_images', ['task_id' => (int) $task['id']]);
@@ -929,6 +944,54 @@ class AIEngine {
         return generate_unique_article_slug($title);
     }
     
+    /**
+     * 将 RSS 配图插入文章正文的合适位置
+     */
+    private function insertRssImages(string $content, array $images): string {
+        // 先移除 AI 可能自己插入的错误图片
+        $content = preg_replace('/!\[[^\]]*\]\([^\)]+\)\s*\n?/', '', $content);
+        $content = trim($content);
+
+        // 按段落分割（以 ## 标题为分界）
+        $sections = preg_split('/(?=^##\s)/m', $content);
+        if (count($sections) <= 1) {
+            // 没有子标题，按空行分段
+            $sections = preg_split('/\n{2,}/', $content);
+        }
+
+        $totalSections = count($sections);
+        $totalImages = count($images);
+
+        if ($totalSections <= 1 || $totalImages === 0) {
+            // 文章太短，直接在末尾加图
+            foreach ($images as $img) {
+                $content .= "\n\n![配图](" . $img . ")";
+            }
+            return $content;
+        }
+
+        // 均匀分布图片到段落之间
+        $result = '';
+        $imgIndex = 0;
+        $interval = max(1, intval($totalSections / ($totalImages + 1)));
+
+        for ($i = 0; $i < $totalSections; $i++) {
+            $result .= ($i > 0 ? "\n\n" : '') . trim($sections[$i]);
+            if ($imgIndex < $totalImages && ($i + 1) % $interval === 0 && $i < $totalSections - 1) {
+                $result .= "\n\n![配图](" . $images[$imgIndex] . ")";
+                $imgIndex++;
+            }
+        }
+
+        // 剩余未插入的图片放在文末
+        while ($imgIndex < $totalImages) {
+            $result .= "\n\n![配图](" . $images[$imgIndex] . ")";
+            $imgIndex++;
+        }
+
+        return $result;
+    }
+
     /**
      * 选择作者
      */
