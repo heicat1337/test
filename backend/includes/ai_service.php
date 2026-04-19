@@ -73,6 +73,10 @@ class AIService {
             'model' => $model['model_id'],
             'messages' => [
                 [
+                    'role' => 'system',
+                    'content' => '你是一位专业的内容创作者。严格要求：直接输出最终成品内容，禁止输出任何思考过程、分析步骤、写作计划或内心独白。'
+                ],
+                [
                     'role' => 'user',
                     'content' => $prompt
                 ]
@@ -113,8 +117,18 @@ class AIService {
         if (!$result || !isset($result['choices'][0]['message']['content'])) {
             throw new Exception('API响应格式错误');
         }
-        
-        return trim($result['choices'][0]['message']['content']);
+
+        $content = trim($result['choices'][0]['message']['content']);
+
+        // 过滤推理模型输出的思考过程（<think>...</think> 标签）
+        $content = preg_replace('/<think>.*?<\/think>/s', '', $content);
+        // 过滤无标签的思考过程：如果内容中有 Markdown 标题，去掉第一个标题前的所有文字
+        if (preg_match('/^#\s+/m', $content)) {
+            $content = preg_replace('/\A.*?(?=^#\s+)/ms', '', $content);
+        }
+        $content = trim($content);
+
+        return $content;
     }
     
     /**
