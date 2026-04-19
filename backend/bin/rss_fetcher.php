@@ -16,16 +16,15 @@ require_once $projectRoot . '/includes/database_admin.php';
 
 $RSS_SOURCES = [
     // 中文
-    ['name' => 'Foresight News',  'url' => 'https://foresightnews.pro/rss'],
-    ['name' => 'Odaily',          'url' => 'https://www.odaily.news/rss'],
-    ['name' => 'PANews',          'url' => 'https://www.panewslab.com/rss/index.xml'],
-    ['name' => 'ChainCatcher',    'url' => 'https://www.chaincatcher.com/rss'],
-    ['name' => 'BlockBeats',      'url' => 'https://www.theblockbeats.info/rss'],
+    ['name' => 'BlockBeats 文章',   'url' => 'https://api.theblockbeats.news/v2/rss/article'],
+    ['name' => 'BlockBeats 快讯',   'url' => 'https://api.theblockbeats.news/v2/rss/newsflash'],
+    ['name' => 'PANews',            'url' => 'https://www.panewslab.com/en/rss'],
     // 英文
-    ['name' => 'CoinDesk',        'url' => 'https://www.coindesk.com/arc/outboundfeeds/rss/'],
-    ['name' => 'The Block',       'url' => 'https://www.theblock.co/rss.xml'],
-    ['name' => 'Decrypt',         'url' => 'https://decrypt.co/feed'],
-    ['name' => 'CoinTelegraph',   'url' => 'https://cointelegraph.com/rss'],
+    ['name' => 'CoinDesk',          'url' => 'https://www.coindesk.com/arc/outboundfeeds/rss/'],
+    ['name' => 'CoinTelegraph',     'url' => 'https://cointelegraph.com/rss'],
+    ['name' => 'Decrypt',           'url' => 'https://decrypt.co/feed'],
+    ['name' => 'The Block',         'url' => 'https://www.theblock.co/rss.xml'],
+    ['name' => 'Web3Wire',          'url' => 'https://web3wire.org/feed/gn'],
 ];
 
 $dryRun = in_array('--dry-run', $argv);
