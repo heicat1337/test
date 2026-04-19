@@ -77,10 +77,21 @@ function parse_rss(string $xml): array {
     if (isset($feed->channel->item)) {
         foreach ($feed->channel->item as $item) {
             $title = trim((string) $item->title);
-            $desc = trim(strip_tags((string) $item->description));
+            // 优先取 content:encoded（完整内容），其次 description
+            $namespaces = $item->getNamespaces(true);
+            $content = '';
+            if (isset($namespaces['content'])) {
+                $contentNs = $item->children($namespaces['content']);
+                if (isset($contentNs->encoded)) {
+                    $content = trim(strip_tags((string) $contentNs->encoded));
+                }
+            }
+            if ($content === '') {
+                $content = trim(strip_tags((string) $item->description));
+            }
             $link = trim((string) $item->link);
             if ($title !== '') {
-                $items[] = ['title' => $title, 'summary' => mb_substr($desc, 0, 500), 'url' => $link];
+                $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link];
             }
         }
     }
@@ -88,13 +99,13 @@ function parse_rss(string $xml): array {
     elseif (isset($feed->entry)) {
         foreach ($feed->entry as $entry) {
             $title = trim((string) $entry->title);
-            $desc = trim(strip_tags((string) $entry->summary));
+            $content = trim(strip_tags((string) ($entry->content ?: $entry->summary)));
             $link = '';
             if (isset($entry->link['href'])) {
                 $link = trim((string) $entry->link['href']);
             }
             if ($title !== '') {
-                $items[] = ['title' => $title, 'summary' => mb_substr($desc, 0, 500), 'url' => $link];
+                $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link];
             }
         }
     }
@@ -154,8 +165,11 @@ foreach ($RSS_SOURCES as $source) {
             continue;
         }
 
-        // 把摘要作为 keyword 存储，AI 改写时可参考
+        // 把原文内容和来源存入 keyword，AI 改写时参考
         $keyword = $item['summary'] ?: '';
+        if ($item['url']) {
+            $keyword .= "\n\n来源: {$item['url']}";
+        }
         $stmt = $db->prepare("INSERT INTO titles (library_id, title, keyword, created_at) VALUES (?, ?, ?, NOW())");
         $stmt->execute([$libraryId, $item['title'], $keyword]);
         $imported++;
