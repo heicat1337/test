@@ -67,6 +67,8 @@ try {
             if (!$article) {
                 throw new ApiException('not_found', '文章不存在', 404);
             }
+            $db->prepare('UPDATE articles SET view_count = view_count + 1 WHERE id = ?')->execute([$article['id']]);
+            $article['view_count'] = intval($article['view_count'] ?? 0) + 1;
             $responsePayload = api_build_success_payload($article, $requestId);
             $statusCode = 200;
         }
