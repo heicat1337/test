@@ -36,8 +36,12 @@ foreach ($argv as $arg) {
     }
 }
 
+ob_implicit_flush(true);
+if (function_exists('ob_end_flush')) { @ob_end_flush(); }
+
 function log_msg(string $msg): void {
     echo '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n";
+    flush();
 }
 
 function fetch_rss(string $url, int $timeout = 15): ?string {
@@ -136,47 +140,50 @@ $totalImported = 0;
 $totalSkipped = 0;
 
 foreach ($RSS_SOURCES as $source) {
-    log_msg("抓取 {$source['name']}: {$source['url']}");
-    $xml = fetch_rss($source['url']);
-    if ($xml === null) {
-        log_msg("  跳过（请求失败）");
+    try {
+        log_msg("抓取 {$source['name']}: {$source['url']}");
+        $xml = fetch_rss($source['url']);
+        if ($xml === null) {
+            log_msg("  跳过（请求失败）");
+            continue;
+        }
+
+        $items = parse_rss($xml);
+        log_msg("  解析到 " . count($items) . " 条");
+
+        $imported = 0;
+        $skipped = 0;
+
+        foreach ($items as $item) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM titles WHERE library_id = ? AND title = ?");
+            $stmt->execute([$libraryId, $item['title']]);
+            if ($stmt->fetchColumn() > 0) {
+                $skipped++;
+                continue;
+            }
+
+            if ($dryRun) {
+                log_msg("  [DRY] {$item['title']}");
+                $imported++;
+                continue;
+            }
+
+            $keyword = $item['summary'] ?: '';
+            if ($item['url']) {
+                $keyword .= "\n\n来源: {$item['url']}";
+            }
+            $stmt = $db->prepare("INSERT INTO titles (library_id, title, keyword, created_at) VALUES (?, ?, ?, NOW())");
+            $stmt->execute([$libraryId, $item['title'], $keyword]);
+            $imported++;
+        }
+
+        log_msg("  导入 {$imported} 条，跳过重复 {$skipped} 条");
+        $totalImported += $imported;
+        $totalSkipped += $skipped;
+    } catch (Throwable $e) {
+        log_msg("  错误: {$e->getMessage()}");
         continue;
     }
-
-    $items = parse_rss($xml);
-    log_msg("  解析到 " . count($items) . " 条");
-
-    $imported = 0;
-    $skipped = 0;
-
-    foreach ($items as $item) {
-        // 检查是否已存在
-        $stmt = $db->prepare("SELECT COUNT(*) FROM titles WHERE library_id = ? AND title = ?");
-        $stmt->execute([$libraryId, $item['title']]);
-        if ($stmt->fetchColumn() > 0) {
-            $skipped++;
-            continue;
-        }
-
-        if ($dryRun) {
-            log_msg("  [DRY] {$item['title']}");
-            $imported++;
-            continue;
-        }
-
-        // 把原文内容和来源存入 keyword，AI 改写时参考
-        $keyword = $item['summary'] ?: '';
-        if ($item['url']) {
-            $keyword .= "\n\n来源: {$item['url']}";
-        }
-        $stmt = $db->prepare("INSERT INTO titles (library_id, title, keyword, created_at) VALUES (?, ?, ?, NOW())");
-        $stmt->execute([$libraryId, $item['title'], $keyword]);
-        $imported++;
-    }
-
-    log_msg("  导入 {$imported} 条，跳过重复 {$skipped} 条");
-    $totalImported += $imported;
-    $totalSkipped += $skipped;
 }
 
 // 刷新标题库计数
