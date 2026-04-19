@@ -5,7 +5,11 @@ export async function fetchArticles(page = 1, perPage = 12): Promise<ArticleList
   const res = await client.get('/articles', {
     params: { status: 'published', page, per_page: perPage }
   })
-  return res.data
+  const payload = res.data.data || res.data
+  return {
+    data: payload.items || [],
+    total_pages: payload.pagination?.total_pages || 1,
+  }
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {

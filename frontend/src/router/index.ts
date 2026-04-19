@@ -7,6 +7,7 @@ const router = createRouter({
     { path: '/', name: 'home', component: HomePage },
     { path: '/articles', name: 'articles', component: () => import('../views/ArticlesPage.vue') },
     { path: '/articles/:slug', name: 'article-detail', component: () => import('../views/ArticleDetailPage.vue') },
+    { path: '/article/:slug', redirect: to => ({ name: 'article-detail', params: { slug: to.params.slug } }) },
   ],
   scrollBehavior(_to, _from, savedPosition) {
     return savedPosition || { top: 0 }
