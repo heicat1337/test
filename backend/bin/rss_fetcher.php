@@ -91,18 +91,41 @@ function parse_rss(string $xml): array {
             // 优先取 content:encoded（完整内容），其次 description
             $namespaces = $item->getNamespaces(true);
             $content = '';
+            $images = [];
+            $rawHtml = '';
             if (isset($namespaces['content'])) {
                 $contentNs = $item->children($namespaces['content']);
                 if (isset($contentNs->encoded)) {
-                    $content = trim(strip_tags((string) $contentNs->encoded));
+                    $rawHtml = (string) $contentNs->encoded;
                 }
             }
-            if ($content === '') {
-                $content = trim(strip_tags((string) $item->description));
+            if ($rawHtml === '') {
+                $rawHtml = (string) $item->description;
             }
+            // 提取图片URL
+            if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $rawHtml, $imgMatches)) {
+                $images = array_slice($imgMatches[1], 0, 5);
+            }
+            // 也检查 media:content 和 enclosure 中的图片
+            if (empty($images)) {
+                $mediaNs = $item->getNamespaces(true);
+                if (isset($mediaNs['media'])) {
+                    $media = $item->children($mediaNs['media']);
+                    if (isset($media->content['url'])) {
+                        $images[] = (string) $media->content['url'];
+                    }
+                }
+                if (isset($item->enclosure['url'])) {
+                    $encUrl = (string) $item->enclosure['url'];
+                    if (preg_match('/\.(jpg|jpeg|png|gif|webp)/i', $encUrl)) {
+                        $images[] = $encUrl;
+                    }
+                }
+            }
+            $content = trim(strip_tags($rawHtml));
             $link = trim((string) $item->link);
             if ($title !== '') {
-                $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link];
+                $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link, 'images' => $images];
             }
         }
     }
@@ -177,8 +200,14 @@ foreach ($RSS_SOURCES as $source) {
             }
 
             $keyword = $item['summary'] ?: '';
+            if (!empty($item['images'])) {
+                $keyword .= "\n\n[文章配图]\n";
+                foreach ($item['images'] as $i => $imgUrl) {
+                    $keyword .= "图" . ($i + 1) . ": " . $imgUrl . "\n";
+                }
+            }
             if ($item['url']) {
-                $keyword .= "\n\n来源: {$item['url']}";
+                $keyword .= "\n来源: {$item['url']}";
             }
             $keyword = mb_substr($keyword, 0, 5000);
             $stmt = $db->prepare("INSERT INTO titles (library_id, title, keyword, created_at) VALUES (?, ?, ?, NOW())");
