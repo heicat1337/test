@@ -5,7 +5,7 @@
       <component :is="Component" ref="pageRef" />
     </router-view>
     <footer class="app-footer">
-      <p>Web3 Nav — 探索去中心化世界</p>
+      <p>玄猫Web3 — 探索去中心化世界</p>
     </footer>
   </div>
 </template>

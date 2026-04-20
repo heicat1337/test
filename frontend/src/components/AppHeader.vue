@@ -4,7 +4,7 @@
       <div class="header-left">
         <router-link to="/" class="logo">
           <span class="logo-icon">◈</span>
-          <h1 class="logo-text">Web3 Nav</h1>
+          <h1 class="logo-text">玄猫Web3</h1>
         </router-link>
         <nav class="header-tabs">
           <router-link to="/" class="tab" :class="{ active: route.name === 'home' }">导航</router-link>

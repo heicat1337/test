@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /heicat/
+Disallow: /api/
+
+Sitemap: https://xuaweb3.com/sitemap.xml

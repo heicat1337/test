@@ -24,11 +24,11 @@ require_once __DIR__ . '/db_support.php';
 require_once __DIR__ . '/i18n.php';
 
 // 网站基本配置
-define('SITE_NAME', env_value('SITE_NAME', '智能GEO内容系统'));
-define('SITE_FULL_NAME', env_value('SITE_FULL_NAME', 'GEO+AI内容生成系统'));
-define('SITE_URL', env_value('SITE_URL', 'http://localhost'));
-define('SITE_DESCRIPTION', env_value('SITE_DESCRIPTION', 'AI驱动的智能内容生成与发布平台，支持自动化文章创作、SEO优化和内容管理'));
-define('SITE_KEYWORDS', env_value('SITE_KEYWORDS', 'AI内容生成,自动化写作,SEO优化,内容管理,人工智能,机器学习'));
+define('SITE_NAME', env_value('SITE_NAME', '玄猫Web3'));
+define('SITE_FULL_NAME', env_value('SITE_FULL_NAME', '玄猫Web3 - Web3行业资讯与导航'));
+define('SITE_URL', env_value('SITE_URL', 'https://xuaweb3.com'));
+define('SITE_DESCRIPTION', env_value('SITE_DESCRIPTION', '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币最新动态、深度分析和项目评测，助你掌握Web3前沿趋势'));
+define('SITE_KEYWORDS', env_value('SITE_KEYWORDS', 'Web3,区块链,加密货币,DeFi,NFT,比特币,以太坊,链上数据,Web3导航,币圈资讯,加密市场,数字货币'));
 define('ADMIN_BASE_PATH', '/' . trim(env_value('ADMIN_BASE_PATH', 'heicat'), '/'));
 
 // SQLite 源库路径，仅用于迁移和兼容维护脚本
@@ -75,13 +75,13 @@ if (filter_var(env_value('DEBUG', defined('DEBUG') ? DEBUG : false), FILTER_VALI
 
 // 网站设置默认值
 $default_settings = [
-    'site_title' => 'GEO+AI内容生成系统',
-    'site_description' => 'AI驱动的智能内容生成与发布平台，支持自动化文章创作、SEO优化和内容管理',
-    'site_keywords' => 'AI内容生成,自动化写作,SEO优化,内容管理,人工智能,机器学习',
+    'site_title' => '玄猫Web3 - Web3行业资讯与导航',
+    'site_description' => '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币最新动态、深度分析和项目评测',
+    'site_keywords' => 'Web3,区块链,加密货币,DeFi,NFT,比特币,以太坊,链上数据,Web3导航,币圈资讯,加密市场,数字货币',
     'site_logo' => '',
     'site_favicon' => '',
-    'copyright_text' => '© 2025 GEO+AI内容生成系统. All rights reserved.',
-    'contact_email' => 'admin@example.com',
+    'copyright_text' => '© 2026 玄猫Web3. All rights reserved.',
+    'contact_email' => 'admin@xuaweb3.com',
     'analytics_code' => '',
     'featured_limit' => 6,
     'per_page' => ITEMS_PER_PAGE,
