@@ -168,8 +168,13 @@ foreach ($RSS_SOURCES as $source) {
         $imported = 0;
 
         foreach ($items as $item) {
+            // 标题库去重
             $stmt = $db->prepare("SELECT COUNT(*) FROM titles WHERE library_id = ? AND title = ?");
             $stmt->execute([$libraryId, $item['title']]);
+            if ($stmt->fetchColumn() > 0) continue;
+            // 已发布文章去重
+            $stmt = $db->prepare("SELECT COUNT(*) FROM articles WHERE title = ? AND deleted_at IS NULL");
+            $stmt->execute([$item['title']]);
             if ($stmt->fetchColumn() > 0) continue;
 
             $keyword = $item['summary'] ?: '';

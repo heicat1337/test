@@ -831,9 +831,25 @@ class AIEngine {
     private function saveArticle($task, $title_info, $article_data) {
         $this->assertGeneratedContentIsValid((string) ($article_data['content'] ?? ''), (string) ($title_info['title'] ?? ''));
 
+        // 优先使用 AI 生成的中文标题
+        $finalTitle = (!empty($article_data['title'])) ? $article_data['title'] : $title_info['title'];
+
+        // 重复过滤：检查是否已存在相同或相似标题的文章
+        $stmt = $this->db->prepare("SELECT id FROM articles WHERE title = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$finalTitle]);
+        if ($stmt->fetch()) {
+            throw new Exception("文章标题重复，跳过: {$finalTitle}");
+        }
+        // 也检查原始标题
+        $stmt = $this->db->prepare("SELECT id FROM articles WHERE title = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$title_info['title']]);
+        if ($stmt->fetch()) {
+            throw new Exception("文章标题重复（原始），跳过: {$title_info['title']}");
+        }
+
         // 生成slug
-        $slug = $this->generateSlug($title_info['title']);
-        
+        $slug = $this->generateSlug($finalTitle);
+
         // 选择作者
         $author_id = $this->selectAuthor($task);
 
@@ -853,9 +869,6 @@ class AIEngine {
                 is_ai_generated, published_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         ");
-        
-        // 优先使用 AI 生成的中文标题
-        $finalTitle = (!empty($article_data['title'])) ? $article_data['title'] : $title_info['title'];
 
         $stmt->execute([
             $finalTitle,
