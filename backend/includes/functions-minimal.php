@@ -9,7 +9,7 @@ function require_admin_login() {
         if (function_exists('admin_redirect')) {
             admin_redirect();
         }
-        header('Location: /geo_admin/');
+        header('Location: /heicat/');
         exit;
     }
 }

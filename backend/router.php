@@ -11,7 +11,7 @@
 $requestUri = $_SERVER['REQUEST_URI'];
 $requestPath = parse_url($requestUri, PHP_URL_PATH);
 $queryString = parse_url($requestUri, PHP_URL_QUERY);
-$adminBasePath = '/' . trim(getenv('ADMIN_BASE_PATH') ?: 'geo_admin', '/');
+$adminBasePath = '/' . trim(getenv('ADMIN_BASE_PATH') ?: 'heicat', '/');
 $legacyAdminPath = '/admin';
 
 // 移除查询参数
