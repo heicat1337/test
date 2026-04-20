@@ -488,8 +488,17 @@ class AIEngine {
             $description = $this->generateDescription($task, $content, $title_info);
         }
         
+        // 从 AI 生成内容中提取标题（第一个 # 标题行）
+        $aiTitle = '';
+        if (preg_match('/^#\s+(.+)$/m', $content, $titleMatch)) {
+            $aiTitle = trim($titleMatch[1]);
+            // 从正文中移除标题行，避免重复
+            $content = trim(preg_replace('/^#\s+.+$/m', '', $content, 1));
+        }
+
         return [
             'content' => $content,
+            'title' => $aiTitle,
             'keywords' => $keywords,
             'description' => $description,
             'excerpt' => $this->generateExcerpt($content),
@@ -845,8 +854,11 @@ class AIEngine {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         ");
         
+        // 优先使用 AI 生成的中文标题
+        $finalTitle = (!empty($article_data['title'])) ? $article_data['title'] : $title_info['title'];
+
         $stmt->execute([
-            $title_info['title'],
+            $finalTitle,
             $slug,
             $article_data['excerpt'],
             $article_data['content'],
