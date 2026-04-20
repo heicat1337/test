@@ -172,6 +172,42 @@ function parse_rss(string $xml): array {
     return $items;
 }
 
+// 加载最近48小时已发布文章标题，用于相似度去重
+$recentTitles = [];
+$stmt = $db->query("SELECT title FROM articles WHERE deleted_at IS NULL AND created_at > NOW() - INTERVAL '48 hours'");
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $recentTitles[] = $row['title'];
+}
+log_msg("已加载 " . count($recentTitles) . " 篇近期文章用于相似度去重");
+
+function extractKeywords(string $text): array {
+    // 移除标点和特殊字符
+    $text = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', mb_strtolower($text, 'UTF-8'));
+    $words = preg_split('/\s+/', trim($text));
+    // 过滤掉太短的词（英文<3字符，中文保留）
+    return array_filter($words, function($w) {
+        return mb_strlen($w, 'UTF-8') >= 2;
+    });
+}
+
+function titleSimilarity(string $a, string $b): float {
+    $wordsA = extractKeywords($a);
+    $wordsB = extractKeywords($b);
+    if (empty($wordsA) || empty($wordsB)) return 0.0;
+    $intersection = count(array_intersect($wordsA, $wordsB));
+    $union = count(array_unique(array_merge($wordsA, $wordsB)));
+    return $union > 0 ? $intersection / $union : 0.0;
+}
+
+function isSimilarToRecent(string $title, array $recentTitles, float $threshold = 0.4): ?string {
+    foreach ($recentTitles as $existing) {
+        if (titleSimilarity($title, $existing) >= $threshold) {
+            return $existing;
+        }
+    }
+    return null;
+}
+
 foreach ($RSS_SOURCES as $source) {
     try {
         $xml = fetch_rss($source['url']);
@@ -184,10 +220,16 @@ foreach ($RSS_SOURCES as $source) {
             $stmt = $db->prepare("SELECT COUNT(*) FROM titles WHERE library_id = ? AND title = ?");
             $stmt->execute([$libraryId, $item['title']]);
             if ($stmt->fetchColumn() > 0) continue;
-            // 已发布文章去重
+            // 已发布文章去重（精确匹配）
             $stmt = $db->prepare("SELECT COUNT(*) FROM articles WHERE title = ? AND deleted_at IS NULL");
             $stmt->execute([$item['title']]);
             if ($stmt->fetchColumn() > 0) continue;
+            // 相似主题去重（关键词相似度 >= 40%）
+            $similarTitle = isSimilarToRecent($item['title'], $recentTitles);
+            if ($similarTitle !== null) {
+                log_msg("  跳过相似: [{$item['title']}] ≈ [{$similarTitle}]");
+                continue;
+            }
 
             $keyword = $item['summary'] ?: '';
             if (!empty($item['images'])) {
@@ -205,6 +247,7 @@ foreach ($RSS_SOURCES as $source) {
             $stmt->execute([$libraryId, $item['title'], $keyword]);
             $newId = (int) $stmt->fetchColumn();
             $newTitleIds[] = $newId;
+            $recentTitles[] = $item['title'];
             $imported++;
         }
         if ($imported > 0) {
