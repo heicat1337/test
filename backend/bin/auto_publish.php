@@ -143,6 +143,13 @@ function parse_rss(string $xml): array {
             }
             $content = trim(strip_tags($rawHtml));
             $link = trim((string) $item->link);
+            // 提取发布时间
+            $pubDate = trim((string) ($item->pubDate ?? ''));
+            $pubTime = $pubDate ? strtotime($pubDate) : false;
+            // 过滤30分钟以前的文章
+            if ($pubTime && (time() - $pubTime) > 1800) {
+                continue;
+            }
             if ($title !== '') {
                 $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link, 'images' => $images];
             }
@@ -152,6 +159,12 @@ function parse_rss(string $xml): array {
             $title = trim((string) $entry->title);
             $content = trim(strip_tags((string) ($entry->content ?: $entry->summary)));
             $link = isset($entry->link['href']) ? trim((string) $entry->link['href']) : '';
+            // 提取发布时间（Atom 格式）
+            $published = trim((string) ($entry->published ?? $entry->updated ?? ''));
+            $pubTime = $published ? strtotime($published) : false;
+            if ($pubTime && (time() - $pubTime) > 1800) {
+                continue;
+            }
             if ($title !== '') {
                 $items[] = ['title' => $title, 'summary' => mb_substr($content, 0, 2000), 'url' => $link, 'images' => []];
             }
