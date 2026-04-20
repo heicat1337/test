@@ -143,11 +143,10 @@ function parse_rss(string $xml): array {
             }
             $content = trim(strip_tags($rawHtml));
             $link = trim((string) $item->link);
-            // 提取发布时间
+            // 提取发布时间，过滤30分钟以前的文章
             $pubDate = trim((string) ($item->pubDate ?? ''));
             $pubTime = $pubDate ? strtotime($pubDate) : false;
-            // 过滤30分钟以前的文章
-            if ($pubTime && (time() - $pubTime) > 1800) {
+            if (!$pubTime || (time() - $pubTime) > 1800) {
                 continue;
             }
             if ($title !== '') {
@@ -162,7 +161,7 @@ function parse_rss(string $xml): array {
             // 提取发布时间（Atom 格式）
             $published = trim((string) ($entry->published ?? $entry->updated ?? ''));
             $pubTime = $published ? strtotime($published) : false;
-            if ($pubTime && (time() - $pubTime) > 1800) {
+            if (!$pubTime || (time() - $pubTime) > 1800) {
                 continue;
             }
             if ($title !== '') {
