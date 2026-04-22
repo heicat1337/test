@@ -69,6 +69,12 @@ try {
             }
             $db->prepare('UPDATE articles SET view_count = view_count + 1 WHERE id = ?')->execute([$article['id']]);
             $article['view_count'] = intval($article['view_count'] ?? 0) + 1;
+            // 记录浏览日志（用于今日统计）
+            try {
+                $ip = $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+                $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+                $db->prepare('INSERT INTO view_logs (article_id, ip_address, user_agent, created_at) VALUES (?, ?, ?, NOW())')->execute([$article['id'], substr($ip, 0, 45), substr($ua, 0, 500)]);
+            } catch (Throwable $e) {}
             $responsePayload = api_build_success_payload($article, $requestId);
             $statusCode = 200;
         }

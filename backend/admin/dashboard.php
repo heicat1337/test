@@ -69,7 +69,7 @@ try {
 
     // 今日统计
     $today_stats = [
-        'today_articles' => $db->query("SELECT COUNT(*) as count FROM articles WHERE DATE(created_at) = CURRENT_DATE AND deleted_at IS NULL")->fetch()['count'] ?? 0,
+        'today_articles' => $db->query("SELECT COUNT(*) as count FROM articles WHERE (DATE(published_at) = CURRENT_DATE OR DATE(created_at) = CURRENT_DATE) AND deleted_at IS NULL")->fetch()['count'] ?? 0,
         'today_tasks' => $db->query("SELECT COUNT(*) as count FROM tasks WHERE DATE(created_at) = CURRENT_DATE")->fetch()['count'] ?? 0,
         'today_views' => $db->query("SELECT COUNT(*) as count FROM view_logs WHERE DATE(created_at) = CURRENT_DATE")->fetch()['count'] ?? 0,
     ];
