@@ -1,8 +1,9 @@
-import { ref, computed, type Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 import type { Category } from '../types'
+import { useSearchState } from './useSearchState'
 
 export function useSearch(categories: Ref<Category[]>) {
-  const query = ref('')
+  const { query } = useSearchState()
 
   const filtered = computed(() => {
     const q = query.value.trim().toLowerCase()
@@ -21,5 +22,7 @@ export function useSearch(categories: Ref<Category[]>) {
       .filter(cat => cat.sites.length > 0)
   })
 
-  return { query, filtered }
+  const firstMatch = computed(() => filtered.value[0]?.sites[0] || null)
+
+  return { query, filtered, firstMatch }
 }

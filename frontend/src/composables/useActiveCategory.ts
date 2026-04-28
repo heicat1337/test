@@ -1,11 +1,12 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 export function useActiveCategory() {
   const activeId = ref('')
   let observer: IntersectionObserver | null = null
+  let scheduledTimer: number | null = null
 
   function setup() {
-    cleanup()
+    cleanupObserver()
     const sections = document.querySelectorAll('[data-category-id]')
     if (!sections.length) return
 
@@ -22,13 +23,31 @@ export function useActiveCategory() {
     sections.forEach(el => observer!.observe(el))
   }
 
-  function cleanup() {
+  function cleanupObserver() {
     observer?.disconnect()
     observer = null
   }
 
-  onMounted(() => setTimeout(setup, 100))
-  onUnmounted(cleanup)
+  function clearScheduled() {
+    if (scheduledTimer !== null) {
+      window.clearTimeout(scheduledTimer)
+      scheduledTimer = null
+    }
+  }
 
-  return { activeId, refresh: setup }
+  function refresh() {
+    clearScheduled()
+    scheduledTimer = window.setTimeout(() => {
+      scheduledTimer = null
+      setup()
+    }, 100)
+  }
+
+  onMounted(refresh)
+  onUnmounted(() => {
+    clearScheduled()
+    cleanupObserver()
+  })
+
+  return { activeId, refresh }
 }

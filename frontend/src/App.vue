@@ -1,9 +1,7 @@
 <template>
   <div class="app">
-    <AppHeader v-model:query="searchQuery" />
-    <router-view v-slot="{ Component }">
-      <component :is="Component" ref="pageRef" />
-    </router-view>
+    <AppHeader />
+    <router-view />
     <footer class="app-footer">
       <p>玄猫Web3 — 探索去中心化世界</p>
     </footer>
@@ -11,22 +9,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
+import { useSearchState } from './composables/useSearchState'
 
 const route = useRoute()
-const searchQuery = ref('')
-const pageRef = ref<any>(null)
-
-watch(searchQuery, (val) => {
-  if (pageRef.value?.query !== undefined) {
-    pageRef.value.query = val
-  }
-})
+const { query } = useSearchState()
 
 watch(() => route.name, () => {
-  searchQuery.value = ''
+  query.value = ''
 })
 </script>
 

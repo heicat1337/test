@@ -11,7 +11,13 @@
           <router-link to="/articles" class="tab" :class="{ active: route.name === 'articles' || route.name === 'article-detail' }">文章</router-link>
         </nav>
       </div>
-      <SearchBar v-if="showSearch" v-model="query" :placeholder="searchPlaceholder" />
+      <SearchBar
+        v-if="showSearch"
+        v-model="query"
+        :placeholder="searchPlaceholder"
+        :hint="hint"
+        @submit="onSubmit"
+      />
     </div>
   </header>
 </template>
@@ -20,14 +26,32 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import SearchBar from './SearchBar.vue'
+import { useSearchState } from '../composables/useSearchState'
+import { useSearch } from '../composables/useSearch'
+import { useNavCategories } from '../composables/useNavCategories'
 
 const route = useRoute()
-const query = defineModel<string>('query', { default: '' })
+const { query } = useSearchState()
+const { categories } = useNavCategories()
+const { firstMatch } = useSearch(categories)
 
 const showSearch = computed(() => route.name === 'home' || route.name === 'articles')
+const isHome = computed(() => route.name === 'home')
 const searchPlaceholder = computed(() =>
-  route.name === 'articles' ? '搜索文章...' : '搜索 Web3 项目...'
+  isHome.value ? '搜索 Web3 项目（回车直达）...' : '搜索文章...'
 )
+const hint = computed(() => {
+  if (!isHome.value || !query.value.trim()) return ''
+  return firstMatch.value ? `↵ 打开 ${firstMatch.value.name}` : ''
+})
+
+function onSubmit() {
+  if (!isHome.value) return
+  const target = firstMatch.value
+  if (target?.url) {
+    window.open(target.url, '_blank', 'noopener,noreferrer')
+  }
+}
 </script>
 
 <style scoped lang="scss">
