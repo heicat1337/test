@@ -1,10 +1,18 @@
 <template>
-  <a :href="site.url" target="_blank" rel="noopener noreferrer" class="site-card">
+  <a
+    :href="site.url"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="site-card"
+    @click="onClick"
+    @auxclick="onClick"
+  >
     <div class="card-glow"></div>
     <div class="card-content">
       <div class="card-header">
         <span class="card-icon">{{ site.icon || '🌐' }}</span>
         <span class="card-name">{{ site.name }}</span>
+        <span v-if="visits > 0" class="card-badge" :title="`已访问 ${visits} 次`">{{ visits }}</span>
       </div>
       <p class="card-desc">{{ site.description }}</p>
     </div>
@@ -17,8 +25,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Site } from '../types'
-defineProps<{ site: Site }>()
+import { useFavorites } from '../composables/useFavorites'
+
+const props = defineProps<{ site: Site }>()
+const { trackVisit, visitCount } = useFavorites()
+const visits = computed(() => visitCount(props.site.url))
+
+function onClick() {
+  trackVisit(props.site.url)
+}
 </script>
 
 <style scoped lang="scss">
@@ -73,6 +90,19 @@ defineProps<{ site: Site }>()
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 255, 136, 0.12);
+  color: var(--neon-green);
+  letter-spacing: 0.02em;
 }
 
 .card-desc {

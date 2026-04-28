@@ -1,6 +1,8 @@
 <template>
   <main class="content">
-    <template v-if="categories.length">
+    <SkeletonLoader v-if="loading" />
+    <template v-else-if="categories.length">
+      <RecommendedSites v-if="recommended.length" :sites="recommended" />
       <section
         v-for="(cat, ci) in categories"
         :key="cat.id"
@@ -27,9 +29,19 @@
 </template>
 
 <script setup lang="ts">
-import type { Category } from '../types'
+import type { Category, Site } from '../types'
 import SiteCard from './SiteCard.vue'
-defineProps<{ categories: Category[] }>()
+import SkeletonLoader from './SkeletonLoader.vue'
+import RecommendedSites from './RecommendedSites.vue'
+
+withDefaults(defineProps<{
+  categories: Category[]
+  loading?: boolean
+  recommended?: Site[]
+}>(), {
+  loading: false,
+  recommended: () => []
+})
 </script>
 
 <style scoped lang="scss">

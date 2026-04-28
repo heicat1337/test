@@ -7,11 +7,14 @@
     <input
       :value="modelValue"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      @keydown.enter.prevent="$emit('submit')"
+      @keydown.escape="$emit('update:modelValue', '')"
       type="text"
       :placeholder="placeholder"
       class="search-input"
     />
-    <button v-if="modelValue" class="search-clear" @click="$emit('update:modelValue', '')">
+    <span v-if="modelValue && hint" class="search-hint">{{ hint }}</span>
+    <button v-if="modelValue" class="search-clear" @click="$emit('update:modelValue', '')" aria-label="清除搜索">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 6 6 18M6 6l12 12" />
       </svg>
@@ -23,10 +26,15 @@
 withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
+  hint?: string
 }>(), {
-  placeholder: '搜索 Web3 项目...'
+  placeholder: '搜索 Web3 项目...',
+  hint: ''
 })
-defineEmits<{ 'update:modelValue': [value: string] }>()
+defineEmits<{
+  'update:modelValue': [value: string]
+  'submit': []
+}>()
 </script>
 
 <style scoped lang="scss">
@@ -73,6 +81,24 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
 
 .search-bar:focus-within .search-icon {
   color: var(--neon-blue);
+}
+
+.search-hint {
+  position: absolute;
+  right: 44px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .search-clear {
