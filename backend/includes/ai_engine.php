@@ -81,7 +81,27 @@ class AIEngine {
                     throw new Exception('没有可用的标题');
                 }
             }
-            
+
+            // 生成前预检：原始标题已存在于 articles 表则标记已用，跳到下一条，
+            // 避免无限重试同一条已重复标题（也省下一次 AI 生成调用）
+            $skipAttempts = 0;
+            while ($title_info && $skipAttempts < 50) {
+                $checkStmt = $this->db->prepare("SELECT id FROM articles WHERE title = ? AND deleted_at IS NULL LIMIT 1");
+                $checkStmt->execute([$title_info['title']]);
+                if (!$checkStmt->fetch()) {
+                    break;
+                }
+                $this->updateTitleUsage($title_info['id']);
+                $this->logTaskExecution($task_id, null, 'skipped', "标题已存在，标记已用并跳过: {$title_info['title']}", [
+                    'skipped_title_id' => (int) $title_info['id']
+                ]);
+                $title_info = $this->getNextTitle($task['title_library_id'], $task['is_loop'], $task['loop_count']);
+                $skipAttempts++;
+            }
+            if (!$title_info) {
+                throw new Exception('标题库内全部标题已生成过文章');
+            }
+
             $this->touchHeartbeat('generating_content', [
                 'task_id' => (int) $task_id,
                 'title_id' => (int) $title_info['id']
@@ -835,15 +855,18 @@ class AIEngine {
         $finalTitle = (!empty($article_data['title'])) ? $article_data['title'] : $title_info['title'];
 
         // 重复过滤：检查是否已存在相同或相似标题的文章
+        // 命中重复时必须先 updateTitleUsage 标记已用，否则下次 getNextTitle 还会取到同一条
         $stmt = $this->db->prepare("SELECT id FROM articles WHERE title = ? AND deleted_at IS NULL LIMIT 1");
         $stmt->execute([$finalTitle]);
         if ($stmt->fetch()) {
+            $this->updateTitleUsage($title_info['id']);
             throw new Exception("文章标题重复，跳过: {$finalTitle}");
         }
         // 也检查原始标题
         $stmt = $this->db->prepare("SELECT id FROM articles WHERE title = ? AND deleted_at IS NULL LIMIT 1");
         $stmt->execute([$title_info['title']]);
         if ($stmt->fetch()) {
+            $this->updateTitleUsage($title_info['id']);
             throw new Exception("文章标题重复（原始），跳过: {$title_info['title']}");
         }
 
