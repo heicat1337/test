@@ -80,23 +80,38 @@ try {
         }
     } elseif ($isNavRoute && $method === 'GET') {
         if (count($segments) === 2 && $segments[1] === 'categories') {
-            $cats = $db->query('SELECT * FROM nav_categories ORDER BY sort_order ASC')->fetchAll(PDO::FETCH_ASSOC);
+            $cats = $db->query('SELECT * FROM nav_categories ORDER BY sort_order ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC);
             foreach ($cats as &$cat) {
-                $stmt = $db->prepare('SELECT id, name, url, description, icon, sort_order FROM nav_sites WHERE category_id = ? ORDER BY sort_order ASC');
+                $stmt = $db->prepare('SELECT id, name, url, description, icon, sort_order, is_recommended FROM nav_sites WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
                 $stmt->execute([$cat['id']]);
-                $cat['sites'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($sites as &$site) {
+                    $site['is_recommended'] = !empty($site['is_recommended']) && $site['is_recommended'] !== 'f' && $site['is_recommended'] !== '0';
+                }
+                unset($site);
+                $cat['sites'] = $sites;
             }
+            unset($cat);
             $responsePayload = api_build_success_payload($cats, $requestId);
             $statusCode = 200;
         } elseif (count($segments) === 2 && $segments[1] === 'sites') {
             $categoryId = $request->getQueryInt('category_id', 0);
-            $sql = 'SELECT id, name, url, description, icon, sort_order, category_id FROM nav_sites';
+            $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended FROM nav_sites';
             if ($categoryId > 0) {
-                $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC');
+                $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
                 $stmt->execute([$categoryId]);
             } else {
-                $stmt = $db->query($sql . ' ORDER BY sort_order ASC');
+                $stmt = $db->query($sql . ' ORDER BY sort_order ASC, id ASC');
             }
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as &$row) {
+                $row['is_recommended'] = !empty($row['is_recommended']) && $row['is_recommended'] !== 'f' && $row['is_recommended'] !== '0';
+            }
+            unset($row);
+            $responsePayload = api_build_success_payload($rows, $requestId);
+            $statusCode = 200;
+        } elseif (count($segments) === 2 && $segments[1] === 'recommended') {
+            $stmt = $db->query('SELECT id, name, url, description, icon, sort_order, category_id FROM nav_sites WHERE is_recommended = TRUE ORDER BY sort_order ASC, id ASC');
             $responsePayload = api_build_success_payload($stmt->fetchAll(PDO::FETCH_ASSOC), $requestId);
             $statusCode = 200;
         } else {

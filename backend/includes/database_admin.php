@@ -23,6 +23,7 @@ class DatabaseAdmin {
         $this->ensureApiSchema();
         $this->ensureCompatibilitySchema();
         $this->ensurePgvectorSchema();
+        $this->ensureNavSchema();
         $this->insertDefaultData();
     }
     
@@ -769,6 +770,38 @@ class DatabaseAdmin {
                 $stmt->execute([$firstAdminId]);
             }
         }
+    }
+
+    private function ensureNavSchema(): void {
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS nav_categories (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                icon VARCHAR(50) DEFAULT '',
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS nav_sites (
+                id SERIAL PRIMARY KEY,
+                category_id INT REFERENCES nav_categories(id) ON DELETE CASCADE,
+                name VARCHAR(200) NOT NULL,
+                url VARCHAR(500) NOT NULL,
+                description TEXT DEFAULT '',
+                icon VARCHAR(50) DEFAULT '',
+                sort_order INT DEFAULT 0,
+                is_recommended BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_nav_sites_category ON nav_sites(category_id);
+        ");
+
+        if (!db_column_exists($this->pdo, 'nav_sites', 'is_recommended')) {
+            $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN is_recommended BOOLEAN DEFAULT FALSE");
+        }
+
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_nav_sites_recommended ON nav_sites(is_recommended) WHERE is_recommended = TRUE");
     }
 
     private function ensurePgvectorSchema(): void {

@@ -17,10 +17,12 @@ CREATE TABLE IF NOT EXISTS nav_sites (
     description TEXT DEFAULT '',
     icon VARCHAR(50) DEFAULT '',
     sort_order INT DEFAULT 0,
+    is_recommended BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_nav_sites_category ON nav_sites(category_id);
+CREATE INDEX IF NOT EXISTS idx_nav_sites_recommended ON nav_sites(is_recommended) WHERE is_recommended = TRUE;
 
 -- Seed data
 INSERT INTO nav_categories (name, icon, sort_order) VALUES

@@ -23,6 +23,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // 定义菜单项和子页面映射
 $menu_items = [
     'dashboard.php' => ['name' => __('nav.dashboard'), 'icon' => 'home'],
+    'nav-categories.php' => ['name' => '导航管理', 'icon' => 'compass'],
     'tasks.php' => ['name' => __('nav.tasks'), 'icon' => 'zap'],
     'articles.php' => ['name' => __('nav.articles'), 'icon' => 'file-text'],
     'materials.php' => ['name' => __('nav.materials'), 'icon' => 'folder'],
@@ -37,6 +38,9 @@ if ($is_super_admin) {
 
 // 定义子页面与主菜单的映射关系
 $sub_page_mapping = [
+    // 导航管理相关页面
+    'nav-sites.php' => 'nav-categories.php',
+
     // 任务管理相关页面
     'task-create.php' => 'tasks.php',
     'task-edit.php' => 'tasks.php',

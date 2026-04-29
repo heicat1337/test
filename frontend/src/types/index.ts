@@ -3,6 +3,7 @@ export interface Site {
   url: string
   description: string
   icon?: string
+  is_recommended?: boolean
 }
 
 export interface Category {

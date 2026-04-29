@@ -19,15 +19,14 @@ import AppContent from '../components/AppContent.vue'
 import { useNavCategories } from '../composables/useNavCategories'
 import { useSearch } from '../composables/useSearch'
 import { useActiveCategory } from '../composables/useActiveCategory'
-import { useFavorites } from '../composables/useFavorites'
 
 const { categories, loading, load } = useNavCategories()
 const { filtered } = useSearch(categories)
 const { activeId, refresh: refreshObserver } = useActiveCategory()
-const { topSites } = useFavorites()
 
-const allSites = computed(() => filtered.value.flatMap(c => c.sites))
-const recommendedSites = computed(() => topSites(allSites.value, 8))
+const recommendedSites = computed(() =>
+  filtered.value.flatMap(c => c.sites).filter(s => s.is_recommended)
+)
 
 watch([filtered, loading], () => {
   nextTick(refreshObserver)

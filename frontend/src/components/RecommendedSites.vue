@@ -2,9 +2,9 @@
   <section v-if="sites.length" class="recommended animate-slide-up">
     <div class="recommended-header">
       <span class="recommended-icon">⭐</span>
-      <h2 class="recommended-name">常用站点</h2>
+      <h2 class="recommended-name">新人推荐</h2>
       <span class="recommended-divider"></span>
-      <span class="recommended-hint">按访问频率自动排序</span>
+      <span class="recommended-hint">{{ sites.length }} 个精选站点</span>
     </div>
     <div class="card-grid">
       <SiteCard v-for="site in sites" :key="site.url" :site="site" />
