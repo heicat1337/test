@@ -18,6 +18,7 @@ fi
 mkdir -p \
   data/db \
   data/backups \
+  data/cache \
   logs \
   uploads/images \
   uploads/knowledge

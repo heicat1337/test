@@ -9,6 +9,7 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database_admin.php';
+require_once __DIR__ . '/../includes/nav_cache.php';
 
 require_admin_login();
 session_write_close();
@@ -74,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                             ");
                             $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f']);
+                            NavCache::invalidate();
                             log_admin_activity('nav_site:create', [
                                 'page' => 'nav-sites.php',
                                 'target_type' => 'nav_site',
@@ -88,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 WHERE id = ?
                             ");
                             $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $id]);
+                            NavCache::invalidate();
                             log_admin_activity('nav_site:update', [
                                 'page' => 'nav-sites.php',
                                 'target_type' => 'nav_site',
@@ -109,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $stmt = $db->prepare("DELETE FROM nav_sites WHERE id = ?");
                         $stmt->execute([$delete_id]);
+                        NavCache::invalidate();
                         log_admin_activity('nav_site:delete', [
                             'page' => 'nav-sites.php',
                             'target_type' => 'nav_site',
@@ -129,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $stmt = $db->prepare("UPDATE nav_sites SET is_recommended = ? WHERE id = ?");
                         $stmt->execute([$next, $toggle_id]);
+                        NavCache::invalidate();
                         log_admin_activity('nav_site:toggle_recommend', [
                             'page' => 'nav-sites.php',
                             'target_type' => 'nav_site',

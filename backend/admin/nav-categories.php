@@ -9,6 +9,7 @@ session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database_admin.php';
+require_once __DIR__ . '/../includes/nav_cache.php';
 
 require_admin_login();
 session_write_close();
@@ -59,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                                 ");
                                 $stmt->execute([$name, $icon, $sort_order]);
+                                NavCache::invalidate();
                                 log_admin_activity('nav_category:create', [
                                     'page' => 'nav-categories.php',
                                     'target_type' => 'nav_category',
@@ -73,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     WHERE id = ?
                                 ");
                                 $stmt->execute([$name, $icon, $sort_order, $id]);
+                                NavCache::invalidate();
                                 log_admin_activity('nav_category:update', [
                                     'page' => 'nav-categories.php',
                                     'target_type' => 'nav_category',
@@ -102,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $stmt = $db->prepare("DELETE FROM nav_categories WHERE id = ?");
                             $stmt->execute([$delete_id]);
+                            NavCache::invalidate();
                             log_admin_activity('nav_category:delete', [
                                 'page' => 'nav-categories.php',
                                 'target_type' => 'nav_category',

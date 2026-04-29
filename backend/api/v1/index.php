@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../includes/api_admin_auth_service.php';
 require_once __DIR__ . '/../../includes/catalog_service.php';
 require_once __DIR__ . '/../../includes/task_lifecycle_service.php';
 require_once __DIR__ . '/../../includes/article_service.php';
+require_once __DIR__ . '/../../includes/nav_cache.php';
 
 $request = new ApiRequest();
 $requestId = $request->getRequestId();
@@ -80,39 +81,80 @@ try {
         }
     } elseif ($isNavRoute && $method === 'GET') {
         if (count($segments) === 2 && $segments[1] === 'categories') {
-            $cats = $db->query('SELECT * FROM nav_categories ORDER BY sort_order ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($cats as &$cat) {
-                $stmt = $db->prepare('SELECT id, name, url, description, icon, sort_order, is_recommended FROM nav_sites WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
-                $stmt->execute([$cat['id']]);
-                $sites = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($sites as &$site) {
-                    $site['is_recommended'] = !empty($site['is_recommended']) && $site['is_recommended'] !== 'f' && $site['is_recommended'] !== '0';
+            $cats = NavCache::get('categories', 60);
+            if ($cats === null) {
+                // 单查询 + PHP 端 group by，消除原本 1 + N 的 SQL 往返
+                $stmt = $db->query('
+                    SELECT
+                        c.id AS cat_id, c.name AS cat_name, c.icon AS cat_icon, c.sort_order AS cat_sort,
+                        s.id AS site_id, s.name AS site_name, s.url AS site_url,
+                        s.description AS site_desc, s.icon AS site_icon,
+                        s.sort_order AS site_sort, s.is_recommended AS site_rec
+                    FROM nav_categories c
+                    LEFT JOIN nav_sites s ON s.category_id = c.id
+                    ORDER BY c.sort_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
+                ');
+                $byCat = [];
+                foreach ($stmt as $row) {
+                    $cid = (int)$row['cat_id'];
+                    if (!isset($byCat[$cid])) {
+                        $byCat[$cid] = [
+                            'id' => $cid,
+                            'name' => $row['cat_name'],
+                            'icon' => $row['cat_icon'],
+                            'sort_order' => (int)$row['cat_sort'],
+                            'sites' => [],
+                        ];
+                    }
+                    if ($row['site_id'] !== null) {
+                        $byCat[$cid]['sites'][] = [
+                            'id' => (int)$row['site_id'],
+                            'name' => $row['site_name'],
+                            'url' => $row['site_url'],
+                            'description' => $row['site_desc'],
+                            'icon' => $row['site_icon'],
+                            'sort_order' => (int)$row['site_sort'],
+                            'is_recommended' => !empty($row['site_rec']) && $row['site_rec'] !== 'f' && $row['site_rec'] !== '0',
+                        ];
+                    }
                 }
-                unset($site);
-                $cat['sites'] = $sites;
+                $cats = array_values($byCat);
+                NavCache::set('categories', $cats);
             }
-            unset($cat);
+            header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
             $responsePayload = api_build_success_payload($cats, $requestId);
             $statusCode = 200;
         } elseif (count($segments) === 2 && $segments[1] === 'sites') {
             $categoryId = $request->getQueryInt('category_id', 0);
-            $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended FROM nav_sites';
-            if ($categoryId > 0) {
-                $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
-                $stmt->execute([$categoryId]);
-            } else {
-                $stmt = $db->query($sql . ' ORDER BY sort_order ASC, id ASC');
+            $cacheKey = 'sites_' . ($categoryId > 0 ? $categoryId : 'all');
+            $rows = NavCache::get($cacheKey, 60);
+            if ($rows === null) {
+                $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended FROM nav_sites';
+                if ($categoryId > 0) {
+                    $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
+                    $stmt->execute([$categoryId]);
+                } else {
+                    $stmt = $db->query($sql . ' ORDER BY sort_order ASC, id ASC');
+                }
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($rows as &$row) {
+                    $row['is_recommended'] = !empty($row['is_recommended']) && $row['is_recommended'] !== 'f' && $row['is_recommended'] !== '0';
+                }
+                unset($row);
+                NavCache::set($cacheKey, $rows);
             }
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($rows as &$row) {
-                $row['is_recommended'] = !empty($row['is_recommended']) && $row['is_recommended'] !== 'f' && $row['is_recommended'] !== '0';
-            }
-            unset($row);
+            header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
             $responsePayload = api_build_success_payload($rows, $requestId);
             $statusCode = 200;
         } elseif (count($segments) === 2 && $segments[1] === 'recommended') {
-            $stmt = $db->query('SELECT id, name, url, description, icon, sort_order, category_id FROM nav_sites WHERE is_recommended = TRUE ORDER BY sort_order ASC, id ASC');
-            $responsePayload = api_build_success_payload($stmt->fetchAll(PDO::FETCH_ASSOC), $requestId);
+            $rows = NavCache::get('recommended', 60);
+            if ($rows === null) {
+                $stmt = $db->query('SELECT id, name, url, description, icon, sort_order, category_id FROM nav_sites WHERE is_recommended = TRUE ORDER BY sort_order ASC, id ASC');
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                NavCache::set('recommended', $rows);
+            }
+            header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+            $responsePayload = api_build_success_payload($rows, $requestId);
             $statusCode = 200;
         } else {
             throw new ApiException('not_found', '接口不存在', 404);
