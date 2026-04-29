@@ -11,9 +11,122 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+    <style>
+      /* 启动骨架屏：HTML 一到达浏览器就显示，避免 JS 加载期间的白屏 */
+      html, body { margin: 0; padding: 0; background: #0a0e1a; color: #e2e8f0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      #app { min-height: 100vh; }
+
+      .boot { display: flex; flex-direction: column; min-height: 100vh; }
+      .boot-header {
+        height: 72px; padding: 0 24px;
+        display: flex; align-items: center; gap: 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(10, 14, 26, 0.8);
+      }
+      .boot-logo { width: 140px; height: 22px; flex-shrink: 0; }
+      .boot-tabs { width: 120px; height: 28px; flex-shrink: 0; }
+      .boot-search { flex: 1; max-width: 480px; height: 36px; margin-left: auto; }
+
+      .boot-body { flex: 1; display: flex; gap: 24px; max-width: 1400px; width: 100%; margin: 0 auto; padding: 24px; box-sizing: border-box; }
+      .boot-side { width: 220px; flex-shrink: 0; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
+      .boot-side-item { height: 36px; }
+      .boot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
+      .boot-section-h { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+      .boot-h-icon { width: 22px; height: 22px; }
+      .boot-h-title { width: 120px; height: 20px; }
+      .boot-h-divider { flex: 1; height: 1px; }
+      .boot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+      .boot-card { height: 92px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; }
+
+      .boot-sk {
+        background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+        background-size: 200% 100%;
+        animation: boot-shimmer 1.4s ease-in-out infinite;
+        border-radius: 8px;
+      }
+      @keyframes boot-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      @media (max-width: 768px) {
+        .boot-side { display: none; }
+        .boot-grid { grid-template-columns: 1fr; }
+        .boot-body { padding: 16px; }
+        .boot-header { padding: 0 16px; }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boot" aria-hidden="true">
+        <div class="boot-header">
+          <div class="boot-sk boot-logo"></div>
+          <div class="boot-sk boot-tabs"></div>
+          <div class="boot-sk boot-search"></div>
+        </div>
+        <div class="boot-body">
+          <div class="boot-side">
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+            <div class="boot-sk boot-side-item"></div>
+          </div>
+          <div class="boot-main">
+            <section>
+              <div class="boot-section-h">
+                <div class="boot-sk boot-h-icon"></div>
+                <div class="boot-sk boot-h-title"></div>
+                <div class="boot-sk boot-h-divider"></div>
+              </div>
+              <div class="boot-grid">
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+              </div>
+            </section>
+            <section>
+              <div class="boot-section-h">
+                <div class="boot-sk boot-h-icon"></div>
+                <div class="boot-sk boot-h-title"></div>
+                <div class="boot-sk boot-h-divider"></div>
+              </div>
+              <div class="boot-grid">
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+              </div>
+            </section>
+            <section>
+              <div class="boot-section-h">
+                <div class="boot-sk boot-h-icon"></div>
+                <div class="boot-sk boot-h-title"></div>
+                <div class="boot-sk boot-h-divider"></div>
+              </div>
+              <div class="boot-grid">
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+                <div class="boot-sk boot-card"></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
