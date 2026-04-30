@@ -78,7 +78,7 @@ class AIEngine {
                 }
                 
                 if (!$title_info) {
-                    throw new Exception('没有可用的标题');
+                    throw new Exception('近 24 小时内无新抓取标题，等待下次触发');
                 }
             }
 
@@ -392,10 +392,15 @@ class AIEngine {
      * 获取下一个标题
      */
     private function getNextTitle($library_id, $is_loop, $loop_count) {
-        // 优先获取未使用的标题
+        // 只洗稿"最近 24 小时内抓取/导入"的标题，避免回头去做隔夜或更早的旧新闻
+        $freshWindowSql = db_now_minus_seconds_sql(86400);
+
+        // 优先获取未使用的新鲜标题
         $stmt = $this->db->prepare("
             SELECT * FROM titles
-            WHERE library_id = ? AND used_count = 0
+            WHERE library_id = ?
+              AND used_count = 0
+              AND created_at >= {$freshWindowSql}
             ORDER BY id ASC
             LIMIT 1
         ");
@@ -406,12 +411,13 @@ class AIEngine {
             return $title;
         }
 
-        // 如果没有未使用的标题
+        // 如果没有未使用的新鲜标题
         if ($is_loop) {
-            // 循环模式：获取使用次数最少的标题
+            // 循环模式：取使用次数最少的（仍只在 24 小时窗口内）
             $stmt = $this->db->prepare("
                 SELECT * FROM titles
                 WHERE library_id = ?
+                  AND created_at >= {$freshWindowSql}
                 ORDER BY used_count ASC, id ASC
                 LIMIT 1
             ");
