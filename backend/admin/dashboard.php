@@ -196,6 +196,53 @@ try {
     $performance_stats = ['avg_generation_time' => 0, 'success_rate' => 0, 'daily_quota_used' => 0];
 }
 
+// RSS 抓取健康检查：scheduler 容器每 RSS_INTERVAL（默认 2 小时）跑一次 rss_fetcher.php
+// 超过阈值未运行 → 显示 banner，提醒检查 scheduler 容器或网络
+$rss_last_run = get_setting('rss_last_run_at', '');
+$rss_last_status = get_setting('rss_last_status', '');
+$rss_last_imported = (int) get_setting('rss_last_imported', '0');
+$rss_last_failed = (int) get_setting('rss_last_failed_sources', '0');
+$rss_last_total = (int) get_setting('rss_last_total_sources', '0');
+
+$rss_banner_level = null; // null=隐藏, 'warn', 'error'
+$rss_banner_msg = '';
+
+if ($rss_last_run === '') {
+    $rss_banner_level = 'warn';
+    $rss_banner_msg = 'RSS 抓取从未执行过。如果 scheduler 容器已运行，请等待首次抓取（默认每 2 小时一次）。';
+} else {
+    $minutes_ago = (time() - strtotime($rss_last_run)) / 60;
+    if ($minutes_ago > 360) {
+        // > 6h 视为停滞
+        $rss_banner_level = 'error';
+        $rss_banner_msg = sprintf(
+            'RSS 抓取已 %d 小时未运行（上次：%s）。请检查 scheduler 容器是否正常：docker compose --profile scheduler ps',
+            (int) round($minutes_ago / 60),
+            $rss_last_run
+        );
+    } elseif ($minutes_ago > 180) {
+        // > 3h（默认间隔 2h 的 1.5 倍）视为延迟
+        $rss_banner_level = 'warn';
+        $rss_banner_msg = sprintf(
+            'RSS 抓取已 %d 分钟未运行（上次：%s），可能延迟。',
+            (int) round($minutes_ago),
+            $rss_last_run
+        );
+    } elseif ($rss_last_status === 'error') {
+        $rss_banner_level = 'error';
+        $rss_banner_msg = sprintf('上次 RSS 抓取所有 %d 个源都失败（%s），可能网络受限。', $rss_last_total, $rss_last_run);
+    } elseif ($rss_last_status === 'warning' && $rss_last_failed > 0) {
+        $rss_banner_level = 'warn';
+        $rss_banner_msg = sprintf(
+            '上次 RSS 抓取有 %d/%d 个源失败（%s），导入 %d 条。',
+            $rss_last_failed,
+            $rss_last_total,
+            $rss_last_run,
+            $rss_last_imported
+        );
+    }
+}
+
 // 包含统一头部
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -215,6 +262,35 @@ require_once __DIR__ . '/includes/header.php';
                     </div>
                 </div>
             </div>
+
+            <?php if ($rss_banner_level !== null): ?>
+                <?php
+                    $rss_banner_classes = $rss_banner_level === 'error'
+                        ? 'bg-red-50 border-red-300 text-red-800'
+                        : 'bg-yellow-50 border-yellow-300 text-yellow-800';
+                    $rss_banner_icon = $rss_banner_level === 'error' ? 'alert-octagon' : 'alert-triangle';
+                ?>
+                <div class="mb-6 p-4 rounded-lg border <?php echo $rss_banner_classes; ?>">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="<?php echo $rss_banner_icon; ?>" class="w-5 h-5 mt-0.5 flex-shrink-0"></i>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-medium">RSS 抓取监控</div>
+                            <div class="text-sm mt-1"><?php echo htmlspecialchars($rss_banner_msg); ?></div>
+                        </div>
+                    </div>
+                </div>
+            <?php elseif ($rss_last_run !== ''): ?>
+                <div class="mb-6 p-3 rounded-lg border bg-green-50 border-green-200 text-green-800">
+                    <div class="flex items-center gap-3 text-sm">
+                        <i data-lucide="rss" class="w-4 h-4"></i>
+                        <span>
+                            RSS 抓取正常 · 上次运行 <?php echo htmlspecialchars($rss_last_run); ?>
+                            · 导入 <?php echo $rss_last_imported; ?> 条
+                            · 共 <?php echo $rss_last_total; ?> 个源全部成功
+                        </span>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <!-- 核心指标卡片 -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -172,6 +172,7 @@ log_msg($dryRun ? '=== DRY RUN 模式 ===' : '=== 开始抓取 ===');
 
 $totalImported = 0;
 $totalSkipped = 0;
+$totalFailed = 0;
 
 foreach ($RSS_SOURCES as $source) {
     try {
@@ -179,6 +180,7 @@ foreach ($RSS_SOURCES as $source) {
         $xml = fetch_rss($source['url']);
         if ($xml === null) {
             log_msg("  跳过（请求失败）");
+            $totalFailed++;
             continue;
         }
 
@@ -223,6 +225,7 @@ foreach ($RSS_SOURCES as $source) {
         $totalSkipped += $skipped;
     } catch (Throwable $e) {
         log_msg("  错误: {$e->getMessage()}");
+        $totalFailed++;
         continue;
     }
 }
@@ -233,4 +236,26 @@ if (!$dryRun && $totalImported > 0) {
     $stmt->execute([$libraryId, $libraryId]);
 }
 
-log_msg("=== 完成: 导入 {$totalImported} 条, 跳过 {$totalSkipped} 条 ===");
+log_msg("=== 完成: 导入 {$totalImported} 条, 跳过 {$totalSkipped} 条, 失败源 {$totalFailed} 个 ===");
+
+// 写入抓取状态供 dashboard 监控读取（dry-run 不写入）
+if (!$dryRun && function_exists('set_setting')) {
+    $totalSources = count($RSS_SOURCES);
+    if ($totalFailed >= $totalSources) {
+        $status = 'error';
+    } elseif ($totalFailed > 0) {
+        $status = 'warning';
+    } else {
+        $status = 'success';
+    }
+    try {
+        set_setting('rss_last_run_at', date('Y-m-d H:i:s'));
+        set_setting('rss_last_imported', (string) $totalImported);
+        set_setting('rss_last_skipped', (string) $totalSkipped);
+        set_setting('rss_last_failed_sources', (string) $totalFailed);
+        set_setting('rss_last_total_sources', (string) $totalSources);
+        set_setting('rss_last_status', $status);
+    } catch (Throwable $e) {
+        log_msg("写入 RSS 状态失败: {$e->getMessage()}");
+    }
+}
