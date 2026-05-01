@@ -4,19 +4,21 @@
     target="_blank"
     rel="noopener noreferrer"
     class="site-card"
+    :class="{ 'is-featured': site.is_recommended }"
     @click="onClick"
     @auxclick="onClick"
   >
     <div class="card-glow"></div>
     <div class="card-content">
       <div class="card-header">
-        <span class="card-icon">{{ site.icon || '🌐' }}</span>
+        <span class="card-icon" :title="site.name">{{ site.icon || '🌐' }}</span>
         <span class="card-name">{{ site.name }}</span>
+        <span v-if="site.is_recommended" class="card-flag" title="新人推荐">★</span>
         <span v-if="visits > 0" class="card-badge" :title="`已访问 ${visits} 次`">{{ visits }}</span>
       </div>
       <p class="card-desc">{{ site.description }}</p>
     </div>
-    <div class="card-arrow">
+    <div class="card-arrow" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M7 17 17 7M7 7h10v10" />
       </svg>
@@ -50,6 +52,7 @@ function onClick() {
   cursor: pointer;
   overflow: hidden;
   transition: all var(--transition-base);
+  min-height: 92px;
 
   &:hover {
     border-color: var(--border-glow);
@@ -59,6 +62,18 @@ function onClick() {
     .card-glow { opacity: 1; }
     .card-arrow { opacity: 1; transform: translate(0, 0); }
     .card-name { color: var(--neon-blue); }
+    .card-icon { border-color: rgba(0, 212, 255, 0.35); }
+  }
+
+  &.is-featured {
+    border-color: rgba(0, 255, 136, 0.25);
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.04), rgba(0, 212, 255, 0.04));
+
+    .card-icon {
+      background: rgba(0, 255, 136, 0.1);
+      border-color: rgba(0, 255, 136, 0.25);
+    }
+    &:hover { border-color: rgba(0, 255, 136, 0.5); }
   }
 }
 
@@ -80,7 +95,20 @@ function onClick() {
   margin-bottom: 8px;
 }
 
-.card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.card-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-base);
+}
 
 .card-name {
   font-size: 15px;
@@ -92,6 +120,13 @@ function onClick() {
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+}
+
+.card-flag {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--neon-green);
+  line-height: 1;
 }
 
 .card-badge {

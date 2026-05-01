@@ -6,6 +6,7 @@
     </div>
     <AppContent
       :categories="filtered"
+      :chip-options="queryFiltered"
       :loading="loading && !categories.length"
       :recommended="recommendedSites"
     />
@@ -22,7 +23,7 @@ import { useActiveCategory } from '../composables/useActiveCategory'
 import { useMeta } from '../composables/useMeta'
 
 const { categories, loading, load } = useNavCategories()
-const { filtered } = useSearch(categories)
+const { filtered, queryFiltered } = useSearch(categories)
 const { activeId, refresh: refreshObserver } = useActiveCategory()
 
 const recommendedSites = computed(() =>

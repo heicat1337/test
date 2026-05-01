@@ -13,12 +13,16 @@ import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import { useSearchState } from './composables/useSearchState'
+import { useHeaderHeight } from './composables/useHeaderHeight'
 
 const route = useRoute()
-const { query } = useSearchState()
+const { query, categoryFilter } = useSearchState()
+
+useHeaderHeight()
 
 watch(() => route.name, () => {
   query.value = ''
+  categoryFilter.value = ''
 })
 </script>
 

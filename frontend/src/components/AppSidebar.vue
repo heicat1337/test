@@ -103,11 +103,27 @@ onUnmounted(() => window.removeEventListener('resize', checkMobile))
       background: var(--gradient-primary);
     }
 
+    .sidebar-icon {
+      background: rgba(0, 212, 255, 0.12);
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.25) inset;
+    }
     .sidebar-count { background: rgba(0, 212, 255, 0.15); color: var(--neon-blue); }
   }
 }
 
-.sidebar-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.sidebar-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: all var(--transition-fast);
+}
 .sidebar-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .sidebar-count {

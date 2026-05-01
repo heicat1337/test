@@ -4,7 +4,7 @@
       <span class="recommended-icon">⭐</span>
       <h2 class="recommended-name">新人推荐</h2>
       <span class="recommended-divider"></span>
-      <span class="recommended-hint">{{ sites.length }} 个精选站点</span>
+      <span class="recommended-hint">{{ sites.length }} 个精选</span>
     </div>
     <div class="card-grid">
       <SiteCard v-for="site in sites" :key="site.url" :site="site" />
@@ -21,23 +21,45 @@ defineProps<{ sites: Site[] }>()
 <style scoped lang="scss">
 @use '../styles/mixins' as *;
 
-.recommended { margin-bottom: 40px; }
+.recommended {
+  position: relative;
+  margin-bottom: 40px;
+  padding: 20px 20px 24px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 255, 136, 0.18);
+  background:
+    radial-gradient(80% 120% at 0% 0%, rgba(0, 255, 136, 0.06), transparent 60%),
+    radial-gradient(80% 120% at 100% 0%, rgba(0, 212, 255, 0.06), transparent 60%);
+}
 
 .recommended-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 18px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color);
 }
 
-.recommended-icon { font-size: 22px; line-height: 1; }
+.recommended-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  border-radius: 12px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+}
 
 .recommended-name {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   background: var(--gradient-accent);
   -webkit-background-clip: text;
   background-clip: text;
@@ -50,7 +72,16 @@ defineProps<{ sites: Site[] }>()
   background: linear-gradient(90deg, var(--border-color), transparent);
 }
 
-.recommended-hint { font-size: 12px; color: var(--text-tertiary); flex-shrink: 0; }
+.recommended-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--neon-green);
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
 
 .card-grid {
   display: grid;
