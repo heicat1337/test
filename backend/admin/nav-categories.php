@@ -22,6 +22,41 @@ $id = intval($_GET['id'] ?? 0);
 $message = '';
 $error = '';
 
+function nav_build_slug(PDO $db, string $name, string $rawSlug = '', int $excludeId = 0): string
+{
+    $source = trim($rawSlug !== '' ? $rawSlug : $name);
+    if (function_exists('iconv')) {
+        $translit = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $source);
+        if ($translit !== false && trim($translit) !== '') {
+            $source = $translit;
+        }
+    }
+    $slug = strtolower($source);
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+    $slug = preg_replace('/-+/', '-', $slug);
+    $slug = trim($slug, '-');
+    if ($slug === '') {
+        $slug = 'cat-' . substr(md5($name), 0, 8);
+    }
+
+    $base = $slug;
+    $i = 2;
+    while (true) {
+        if ($excludeId > 0) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM nav_categories WHERE slug = ? AND id <> ?");
+            $stmt->execute([$slug, $excludeId]);
+        } else {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM nav_categories WHERE slug = ?");
+            $stmt->execute([$slug]);
+        }
+        if ((int)$stmt->fetchColumn() === 0) {
+            return $slug;
+        }
+        $slug = $base . '-' . $i;
+        $i++;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = '请求校验失败，请刷新页面后重试';
@@ -32,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'add':
             case 'edit':
                 $name = trim($_POST['name'] ?? '');
+                $rawSlug = trim($_POST['slug'] ?? '');
                 $icon = trim($_POST['icon'] ?? '');
                 $sort_order = intval($_POST['sort_order'] ?? 0);
 
@@ -54,33 +90,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ((int)$check->fetchColumn() > 0) {
                             $error = '分类名称已存在';
                         } else {
+                            $slug = nav_build_slug($db, $name, $rawSlug, $post_action === 'edit' ? $id : 0);
                             if ($post_action === 'add') {
                                 $stmt = $db->prepare("
-                                    INSERT INTO nav_categories (name, icon, sort_order, created_at)
-                                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                                    INSERT INTO nav_categories (name, slug, icon, sort_order, created_at)
+                                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                                 ");
-                                $stmt->execute([$name, $icon, $sort_order]);
+                                $stmt->execute([$name, $slug, $icon, $sort_order]);
                                 NavCache::invalidate();
                                 log_admin_activity('nav_category:create', [
                                     'page' => 'nav-categories.php',
                                     'target_type' => 'nav_category',
-                                    'details' => ['name' => $name]
+                                    'details' => ['name' => $name, 'slug' => $slug]
                                 ]);
                                 header('Location: nav-categories.php?message=' . urlencode('分类已添加'));
                                 exit;
                             } else {
                                 $stmt = $db->prepare("
                                     UPDATE nav_categories
-                                    SET name = ?, icon = ?, sort_order = ?
+                                    SET name = ?, slug = ?, icon = ?, sort_order = ?
                                     WHERE id = ?
                                 ");
-                                $stmt->execute([$name, $icon, $sort_order, $id]);
+                                $stmt->execute([$name, $slug, $icon, $sort_order, $id]);
                                 NavCache::invalidate();
                                 log_admin_activity('nav_category:update', [
                                     'page' => 'nav-categories.php',
                                     'target_type' => 'nav_category',
                                     'target_id' => $id,
-                                    'details' => ['name' => $name]
+                                    'details' => ['name' => $name, 'slug' => $slug]
                                 ]);
                                 header('Location: nav-categories.php?message=' . urlencode('分类已更新'));
                                 exit;
@@ -230,6 +267,15 @@ require_once __DIR__ . '/includes/header.php';
                             </div>
 
                             <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">URL Slug</label>
+                                <input type="text" name="slug" maxlength="100" pattern="[a-z0-9-]*"
+                                       value="<?php echo htmlspecialchars($category_data['slug'] ?? ''); ?>"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                       placeholder="例如：defi（留空自动从名称生成）">
+                                <p class="mt-1 text-xs text-gray-500">用于 URL：/c/<strong><?php echo htmlspecialchars($category_data['slug'] ?? 'your-slug'); ?></strong>，仅小写字母、数字和连字符</p>
+                            </div>
+
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">排序</label>
                                 <input type="number" name="sort_order" min="0"
                                        value="<?php echo intval($category_data['sort_order'] ?? 0); ?>"
@@ -282,7 +328,10 @@ require_once __DIR__ . '/includes/header.php';
                                             <td class="px-6 py-4">
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-2xl leading-none"><?php echo htmlspecialchars($cat['icon'] ?? ''); ?></span>
-                                                    <span class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($cat['name']); ?></span>
+                                                    <div class="min-w-0">
+                                                        <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($cat['name']); ?></div>
+                                                        <div class="text-xs text-gray-500">/c/<?php echo htmlspecialchars($cat['slug'] ?? ''); ?></div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">

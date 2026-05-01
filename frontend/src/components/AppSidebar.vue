@@ -1,37 +1,50 @@
 <template>
   <aside class="sidebar" :class="{ collapsed: isMobile }">
     <nav class="sidebar-nav">
-      <button
+      <a
         v-for="cat in categories"
         :key="cat.id"
+        :href="`/c/${cat.slug || cat.id}`"
         class="sidebar-item"
         :class="{ active: activeId === cat.id }"
-        @click="scrollTo(cat.id)"
+        @click="onItemClick($event, cat)"
       >
         <span class="sidebar-icon">{{ cat.icon }}</span>
         <span class="sidebar-label">{{ cat.name }}</span>
         <span class="sidebar-count">{{ cat.sites.length }}</span>
-      </button>
+      </a>
     </nav>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import type { Category } from '../types'
 
 defineProps<{ categories: Category[]; activeId: string }>()
 
+const route = useRoute()
+const router = useRouter()
 const isMobile = ref(false)
 
 function checkMobile() { isMobile.value = window.innerWidth < 769 }
 
-function scrollTo(id: string) {
-  const el = document.querySelector(`[data-category-id="${id}"]`)
-  if (el) {
-    const top = el.getBoundingClientRect().top + window.scrollY - 90
-    window.scrollTo({ top, behavior: 'smooth' })
+function onItemClick(e: MouseEvent, cat: Category) {
+  // 让浏览器/爬虫看到真实的 <a href>；只拦截普通左键点击做 SPA 行为
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  // 在首页：滚动到对应 anchor，保留原 UX
+  if (route.name === 'home') {
+    const el = document.querySelector(`[data-category-id="${cat.id}"]`)
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 90
+      window.scrollTo({ top, behavior: 'smooth' })
+      return
+    }
   }
+  // 其他页面：路由到独立分类页
+  router.push(`/c/${cat.slug || cat.id}`)
 }
 
 onMounted(() => { checkMobile(); window.addEventListener('resize', checkMobile) })

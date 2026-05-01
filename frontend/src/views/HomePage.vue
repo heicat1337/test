@@ -19,6 +19,7 @@ import AppContent from '../components/AppContent.vue'
 import { useNavCategories } from '../composables/useNavCategories'
 import { useSearch } from '../composables/useSearch'
 import { useActiveCategory } from '../composables/useActiveCategory'
+import { useMeta } from '../composables/useMeta'
 
 const { categories, loading, load } = useNavCategories()
 const { filtered } = useSearch(categories)
@@ -27,6 +28,39 @@ const { activeId, refresh: refreshObserver } = useActiveCategory()
 const recommendedSites = computed(() =>
   filtered.value.flatMap(c => c.sites).filter(s => s.is_recommended)
 )
+
+useMeta(() => ({
+  title: '玄猫Web3 - Web3 行业资讯与导航平台',
+  description: '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币、交易所、钱包、L2、跨链桥等领域的最新动态、深度分析和项目评测。',
+  canonical: 'https://xuaweb3.com/',
+  ogType: 'website',
+  jsonLd: [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: '玄猫Web3',
+      url: 'https://xuaweb3.com/',
+      description: '专业的 Web3 行业资讯与导航平台',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: 'https://xuaweb3.com/?q={search_term_string}',
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: '玄猫Web3 导航',
+      url: 'https://xuaweb3.com/',
+      hasPart: categories.value.map(c => ({
+        '@type': 'ItemList',
+        name: c.name,
+        url: `https://xuaweb3.com/c/${c.slug || c.id}`,
+        numberOfItems: c.sites.length,
+      })),
+    },
+  ],
+}))
 
 watch([filtered, loading], () => {
   nextTick(refreshObserver)

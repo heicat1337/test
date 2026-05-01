@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS nav_categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE,
     icon VARCHAR(50) DEFAULT '',
     sort_order INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -25,19 +26,19 @@ CREATE INDEX IF NOT EXISTS idx_nav_sites_category ON nav_sites(category_id);
 CREATE INDEX IF NOT EXISTS idx_nav_sites_recommended ON nav_sites(is_recommended) WHERE is_recommended = TRUE;
 
 -- Seed data
-INSERT INTO nav_categories (name, icon, sort_order) VALUES
-('交易所', '🏛️', 1),
-('DeFi', '🏦', 2),
-('DEX', '🔄', 3),
-('NFT', '🎨', 4),
-('钱包', '👛', 5),
-('L2 & 扩容', '🚀', 6),
-('跨链桥', '🌉', 7),
-('数据分析', '📊', 8),
-('开发工具', '🛠️', 9),
-('DAO & 治理', '🏛️', 10),
-('安全', '🔒', 11),
-('新闻资讯', '📰', 12);
+INSERT INTO nav_categories (name, slug, icon, sort_order) VALUES
+('交易所', 'exchange', '🏛️', 1),
+('DeFi', 'defi', '🏦', 2),
+('DEX', 'dex', '🔄', 3),
+('NFT', 'nft', '🎨', 4),
+('钱包', 'wallet', '👛', 5),
+('L2 & 扩容', 'l2-scaling', '🚀', 6),
+('跨链桥', 'bridge', '🌉', 7),
+('数据分析', 'analytics', '📊', 8),
+('开发工具', 'developer-tools', '🛠️', 9),
+('DAO & 治理', 'dao', '🏛️', 10),
+('安全', 'security', '🔒', 11),
+('新闻资讯', 'news', '📰', 12);
 
 -- 交易所
 INSERT INTO nav_sites (category_id, name, url, description, icon, sort_order) VALUES

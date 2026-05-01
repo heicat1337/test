@@ -777,6 +777,7 @@ class DatabaseAdmin {
             CREATE TABLE IF NOT EXISTS nav_categories (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
+                slug VARCHAR(100) UNIQUE,
                 icon VARCHAR(50) DEFAULT '',
                 sort_order INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -802,6 +803,36 @@ class DatabaseAdmin {
         }
 
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_nav_sites_recommended ON nav_sites(is_recommended) WHERE is_recommended = TRUE");
+
+        // 老库补 slug 列
+        if (!db_column_exists($this->pdo, 'nav_categories', 'slug')) {
+            $this->pdo->exec("ALTER TABLE nav_categories ADD COLUMN slug VARCHAR(100)");
+        }
+
+        // 已知中文分类名 → 英文 slug 回填映射（init_nav_data.sql 中的种子数据）
+        $slugMap = [
+            '交易所' => 'exchange',
+            'DeFi' => 'defi',
+            'DEX' => 'dex',
+            'NFT' => 'nft',
+            '钱包' => 'wallet',
+            'L2 & 扩容' => 'l2-scaling',
+            '跨链桥' => 'bridge',
+            '数据分析' => 'analytics',
+            '开发工具' => 'developer-tools',
+            'DAO & 治理' => 'dao',
+            '安全' => 'security',
+            '新闻资讯' => 'news',
+        ];
+        foreach ($slugMap as $name => $slug) {
+            $stmt = $this->pdo->prepare("UPDATE nav_categories SET slug = ? WHERE name = ? AND (slug IS NULL OR slug = '')");
+            $stmt->execute([$slug, $name]);
+        }
+
+        // 仍有空 slug 的（管理员后建的中文名）→ 用 cat-{id}
+        $this->pdo->exec("UPDATE nav_categories SET slug = 'cat-' || id WHERE slug IS NULL OR slug = ''");
+
+        $this->pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_nav_categories_slug ON nav_categories(slug)");
     }
 
     private function ensurePgvectorSchema(): void {

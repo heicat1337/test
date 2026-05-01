@@ -86,7 +86,7 @@ try {
                 // 单查询 + PHP 端 group by，消除原本 1 + N 的 SQL 往返
                 $stmt = $db->query('
                     SELECT
-                        c.id AS cat_id, c.name AS cat_name, c.icon AS cat_icon, c.sort_order AS cat_sort,
+                        c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug, c.icon AS cat_icon, c.sort_order AS cat_sort,
                         s.id AS site_id, s.name AS site_name, s.url AS site_url,
                         s.description AS site_desc, s.icon AS site_icon,
                         s.sort_order AS site_sort, s.is_recommended AS site_rec
@@ -101,6 +101,7 @@ try {
                         $byCat[$cid] = [
                             'id' => $cid,
                             'name' => $row['cat_name'],
+                            'slug' => $row['cat_slug'] ?: ('cat-' . $cid),
                             'icon' => $row['cat_icon'],
                             'sort_order' => (int)$row['cat_sort'],
                             'sites' => [],
