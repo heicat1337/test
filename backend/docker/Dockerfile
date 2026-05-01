@@ -38,7 +38,9 @@ COPY category.php /var/www/html/category.php
 COPY index.php /var/www/html/index.php
 COPY llms.txt /var/www/html/llms.txt
 COPY llms-full.txt /var/www/html/llms-full.txt
+COPY render_seo.php /var/www/html/render_seo.php
 COPY router.php /var/www/html/router.php
+COPY sitemap.php /var/www/html/sitemap.php
 
 EXPOSE 8080
 
