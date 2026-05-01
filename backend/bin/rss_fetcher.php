@@ -75,6 +75,11 @@ function fetch_rss(string $url, int $timeout = 15): ?string {
     return $result;
 }
 
+// 只接受 pubDate 在最近这个窗口内的 RSS 条目，防止把 feed 里残留的几天前旧新闻当新标题灌入。
+// 兼容 scheduler 默认 2h 抓一次的节奏，留点余量避免单次失败丢条。可通过 RSS_FRESH_WINDOW_SECONDS 环境变量覆盖。
+$envWindow = getenv('RSS_FRESH_WINDOW_SECONDS');
+define('RSS_FRESH_WINDOW_SECONDS', $envWindow !== false && (int) $envWindow > 0 ? (int) $envWindow : 14400);
+
 function parse_rss(string $xml): array {
     libxml_use_internal_errors(true);
     $feed = simplexml_load_string($xml);
@@ -88,6 +93,12 @@ function parse_rss(string $xml): array {
     if (isset($feed->channel->item)) {
         foreach ($feed->channel->item as $item) {
             $title = trim((string) $item->title);
+            // 发布时间过滤：缺失或太旧一律跳过
+            $pubDate = trim((string) ($item->pubDate ?? ''));
+            $pubTime = $pubDate ? strtotime($pubDate) : false;
+            if (!$pubTime || (time() - $pubTime) > RSS_FRESH_WINDOW_SECONDS) {
+                continue;
+            }
             // 优先取 content:encoded（完整内容），其次 description
             $namespaces = $item->getNamespaces(true);
             $content = '';
@@ -136,6 +147,11 @@ function parse_rss(string $xml): array {
     elseif (isset($feed->entry)) {
         foreach ($feed->entry as $entry) {
             $title = trim((string) $entry->title);
+            $published = trim((string) ($entry->published ?? $entry->updated ?? ''));
+            $pubTime = $published ? strtotime($published) : false;
+            if (!$pubTime || (time() - $pubTime) > RSS_FRESH_WINDOW_SECONDS) {
+                continue;
+            }
             $content = trim(strip_tags((string) ($entry->content ?: $entry->summary)));
             $link = '';
             if (isset($entry->link['href'])) {
@@ -168,6 +184,44 @@ if ($libraryId === null) {
 }
 
 log_msg("目标标题库 ID={$libraryId}");
+
+// === 清理脏标题（dry-run 不动数据库） ===
+// 1) 一次性回填：旧版没有 pubDate 过滤，库里堆积了大量内容陈旧的标题。首次跑到这里时一次性清空所有未用条目，
+//    后续 RSS 抓取（已加 pubDate 过滤）只会带回真正新鲜的新闻。靠 site_settings 的旗标确保只执行一次。
+// 2) 常态清理：AI engine 只洗 24h 内导入的标题，超过 24h 还没用的等于死库存，每次抓取前清掉防止无意义堆积。
+if (!$dryRun) {
+    try {
+        $purgeFlagKey = 'rss_purge_stale_backlog_v1';
+        $alreadyPurged = function_exists('get_setting') ? get_setting($purgeFlagKey, '') : '';
+        // 排除被 article_queue（legacy 表）引用的标题，避免触发外键报错
+        $fkGuard = "AND NOT EXISTS (SELECT 1 FROM article_queue q WHERE q.title_id = titles.id)";
+        if ($alreadyPurged !== '1') {
+            $stmt = $db->prepare("DELETE FROM titles WHERE library_id = ? AND used_count = 0 {$fkGuard}");
+            $stmt->execute([$libraryId]);
+            $purged = $stmt->rowCount();
+            log_msg("一次性清理：删除 {$purged} 条历史未用标题（陈旧内容）");
+            if (function_exists('set_setting')) {
+                set_setting($purgeFlagKey, '1');
+            }
+        } else {
+            $stmt = $db->prepare("
+                DELETE FROM titles
+                WHERE library_id = ?
+                  AND used_count = 0
+                  {$fkGuard}
+                  AND created_at < " . db_now_minus_seconds_sql(86400)
+            );
+            $stmt->execute([$libraryId]);
+            $aged = $stmt->rowCount();
+            if ($aged > 0) {
+                log_msg("常态清理：删除 {$aged} 条超过 24 小时仍未洗稿的标题");
+            }
+        }
+    } catch (Throwable $e) {
+        log_msg("清理旧标题失败（继续）: {$e->getMessage()}");
+    }
+}
+
 log_msg($dryRun ? '=== DRY RUN 模式 ===' : '=== 开始抓取 ===');
 
 $totalImported = 0;
