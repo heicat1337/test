@@ -6,10 +6,13 @@ import { onMounted, onUnmounted } from 'vue'
 export function useHeaderHeight() {
   let observer: ResizeObserver | null = null
   let target: HTMLElement | null = null
+  let lastHeight = -1
 
   function update() {
     if (!target) return
     const h = Math.round(target.getBoundingClientRect().height)
+    if (h === lastHeight) return
+    lastHeight = h
     document.documentElement.style.setProperty('--header-height', `${h}px`)
   }
 

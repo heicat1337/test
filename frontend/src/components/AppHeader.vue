@@ -69,7 +69,9 @@ function onSubmit() {
 .header-inner {
   max-width: 1400px;
   margin: 0 auto;
-  height: var(--header-height);
+  /* 固定高度（不用 --header-height）：那个变量被 useHeaderHeight 测量后回写，
+     一旦在这里读它就和 border 形成 1px 累加的反馈死循环 */
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
