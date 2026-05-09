@@ -19,10 +19,45 @@ header('X-Robots-Tag: index,follow');
 $baseUrl = rtrim(env_value('SITE_URL', 'https://xuaweb3.com'), '/');
 $route = $_GET['route'] ?? 'home';
 $slug = trim((string) ($_GET['slug'] ?? ''));
+$id = (int) ($_GET['id'] ?? 0);
 
 function h(string $s): string
 {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+}
+
+function seo_serialize_site_row(array $row): array
+{
+    $isRec = $row['is_recommended'] ?? false;
+    if (is_string($isRec)) {
+        $isRec = $isRec !== '' && $isRec !== 'f' && $isRec !== '0';
+    } else {
+        $isRec = (bool) $isRec;
+    }
+    $tagsRaw = trim((string) ($row['tags'] ?? ''));
+    $tags = $tagsRaw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $tagsRaw))));
+    $socialRaw = trim((string) ($row['social_links'] ?? ''));
+    $social = (object) [];
+    if ($socialRaw !== '') {
+        $decoded = json_decode($socialRaw, true);
+        if (is_array($decoded)) {
+            $social = $decoded;
+        }
+    }
+    return [
+        'id' => (int) $row['id'],
+        'name' => $row['name'],
+        'url' => $row['url'],
+        'description' => $row['description'] ?? '',
+        'icon' => $row['icon'] ?? '',
+        'sort_order' => (int) ($row['sort_order'] ?? 0),
+        'category_id' => isset($row['category_id']) ? (int) $row['category_id'] : null,
+        'is_recommended' => $isRec,
+        'tags' => $tags,
+        'rating' => isset($row['rating']) ? (float) $row['rating'] : 0.0,
+        'social_links' => $social,
+        'screenshot_url' => $row['screenshot_url'] ?? '',
+    ];
 }
 
 function load_categories(PDO $db): array
@@ -35,7 +70,9 @@ function load_categories(PDO $db): array
         SELECT
             c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug, c.icon AS cat_icon, c.sort_order AS cat_sort,
             s.id AS site_id, s.name AS site_name, s.url AS site_url, s.description AS site_desc,
-            s.icon AS site_icon, s.sort_order AS site_sort, s.is_recommended AS site_rec
+            s.icon AS site_icon, s.sort_order AS site_sort, s.is_recommended AS site_rec,
+            s.tags AS site_tags, s.rating AS site_rating,
+            s.social_links AS site_social, s.screenshot_url AS site_shot
         FROM nav_categories c
         LEFT JOIN nav_sites s ON s.category_id = c.id
         ORDER BY c.sort_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
@@ -54,20 +91,57 @@ function load_categories(PDO $db): array
             ];
         }
         if ($row['site_id'] !== null) {
-            $byCat[$cid]['sites'][] = [
-                'id' => (int) $row['site_id'],
+            $byCat[$cid]['sites'][] = seo_serialize_site_row([
+                'id' => $row['site_id'],
                 'name' => $row['site_name'],
                 'url' => $row['site_url'],
                 'description' => $row['site_desc'],
                 'icon' => $row['site_icon'],
-                'sort_order' => (int) $row['site_sort'],
-                'is_recommended' => !empty($row['site_rec']) && $row['site_rec'] !== 'f' && $row['site_rec'] !== '0',
-            ];
+                'sort_order' => $row['site_sort'],
+                'category_id' => $cid,
+                'is_recommended' => $row['site_rec'],
+                'tags' => $row['site_tags'],
+                'rating' => $row['site_rating'],
+                'social_links' => $row['site_social'],
+                'screenshot_url' => $row['site_shot'],
+            ]);
         }
     }
     $cats = array_values($byCat);
     NavCache::set('categories', $cats);
     return $cats;
+}
+
+function load_site_detail(PDO $db, int $id): ?array
+{
+    $cacheKey = 'site_' . $id;
+    $cached = NavCache::get($cacheKey, 60);
+    if ($cached !== null) {
+        return $cached;
+    }
+    $stmt = $db->prepare('
+        SELECT s.id, s.name, s.url, s.description, s.icon, s.sort_order, s.category_id,
+               s.is_recommended, s.tags, s.rating, s.social_links, s.screenshot_url,
+               c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
+        FROM nav_sites s
+        LEFT JOIN nav_categories c ON c.id = s.category_id
+        WHERE s.id = ?
+        LIMIT 1
+    ');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    $site = seo_serialize_site_row($row);
+    $site['category'] = $row['category_id'] ? [
+        'id' => (int) $row['category_id'],
+        'name' => $row['category_name'],
+        'slug' => $row['category_slug'] ?: ('cat-' . (int) $row['category_id']),
+        'icon' => $row['category_icon'],
+    ] : null;
+    NavCache::set($cacheKey, $site);
+    return $site;
 }
 
 function emit_head(string $title, string $description, string $canonical, array $jsonLd): void
@@ -299,6 +373,99 @@ if ($route === 'category') {
         echo '<a href="/c/' . h($c['slug']) . '">' . h($c['icon']) . ' ' . h($c['name']) . '</a>' . "\n";
     }
     echo '</nav>' . "\n";
+
+    emit_foot($baseUrl);
+    exit;
+}
+
+if ($route === 'project') {
+    $site = $id > 0 ? load_site_detail($db, $id) : null;
+    if (!$site) {
+        http_response_code(404);
+        emit_head('未找到项目 - 玄猫Web3', '该项目不存在或已下架', $baseUrl, []);
+        echo '<h2>未找到项目</h2>' . "\n";
+        echo '<p><a href="/">← 返回首页</a></p>' . "\n";
+        emit_foot($baseUrl);
+        exit;
+    }
+
+    $canonical = $baseUrl . '/project/' . $site['id'];
+    $tagPart = !empty($site['tags']) ? '，标签：' . implode('、', $site['tags']) : '';
+    $description = $site['name']
+        . (!empty($site['category']['name']) ? '（' . $site['category']['name'] . '分类）' : '')
+        . ' - ' . ($site['description'] ?: 'Web3 项目')
+        . $tagPart . '。在玄猫Web3 一键访问官网。';
+    $title = $site['name'] . ' | 玄猫Web3';
+
+    $crumbItems = [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => '首页', 'item' => $baseUrl . '/'],
+    ];
+    if (!empty($site['category'])) {
+        $crumbItems[] = ['@type' => 'ListItem', 'position' => 2, 'name' => $site['category']['name'], 'item' => $baseUrl . '/c/' . $site['category']['slug']];
+        $crumbItems[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $site['name'], 'item' => $canonical];
+    } else {
+        $crumbItems[] = ['@type' => 'ListItem', 'position' => 2, 'name' => $site['name'], 'item' => $canonical];
+    }
+    $breadcrumb = ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $crumbItems];
+    $product = [
+        '@context' => 'https://schema.org',
+        '@type' => 'WebSite',
+        'name' => $site['name'],
+        'url' => $site['url'],
+        'description' => $site['description'],
+    ];
+    if (!empty($site['rating']) && $site['rating'] > 0) {
+        $product['aggregateRating'] = [
+            '@type' => 'AggregateRating',
+            'ratingValue' => $site['rating'],
+            'bestRating' => 5,
+            'ratingCount' => 1,
+        ];
+    }
+
+    emit_head($title, $description, $canonical, [$breadcrumb, $product]);
+
+    echo '<nav class="crumb"><a href="/">首页</a>';
+    if (!empty($site['category'])) {
+        echo ' › <a href="/c/' . h($site['category']['slug']) . '">' . h($site['category']['name']) . '</a>';
+    }
+    echo ' › ' . h($site['name']) . '</nav>' . "\n";
+
+    $shotUrl = !empty($site['screenshot_url'])
+        ? $site['screenshot_url']
+        : 'https://s.wordpress.com/mshots/v1/' . urlencode($site['url']) . '?w=900&h=600';
+
+    echo '<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:32px;align-items:start;margin-top:16px">' . "\n";
+    echo '<div>' . "\n";
+    echo '<img src="' . h($shotUrl) . '" alt="' . h($site['name']) . ' 网站截图" loading="eager" style="width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:16px;border:1px solid rgba(255,255,255,.08)">' . "\n";
+    echo '<a href="' . h($site['url']) . '" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;margin-top:16px;padding:14px;border-radius:12px;background:linear-gradient(135deg,#00d4ff,#7c3aed);color:#fff;font-weight:600;text-decoration:none">访问官网 →</a>' . "\n";
+    echo '</div>' . "\n";
+    echo '<div>' . "\n";
+    echo '<h2 style="font-size:32px;margin:0 0 8px">' . h($site['icon'] ?: '🌐') . ' ' . h($site['name']) . '</h2>' . "\n";
+    echo '<p style="color:#94a3b8;margin:0 0 16px"><a href="' . h($site['url']) . '" target="_blank" rel="noopener noreferrer" style="color:#94a3b8">' . h($site['url']) . '</a></p>' . "\n";
+    if (!empty($site['description'])) {
+        echo '<p style="color:#cbd5e1;line-height:1.7;font-size:15px">' . h($site['description']) . '</p>' . "\n";
+    }
+    if (!empty($site['rating']) && $site['rating'] > 0) {
+        echo '<p style="margin:16px 0"><strong style="color:#94a3b8;font-weight:500">评分：</strong><span style="color:#ffb84d;font-weight:600">' . number_format($site['rating'], 1) . ' / 5</span></p>' . "\n";
+    }
+    if (!empty($site['tags'])) {
+        echo '<p style="margin:16px 0"><strong style="color:#94a3b8;font-weight:500">标签：</strong>';
+        foreach ($site['tags'] as $tag) {
+            echo '<span style="display:inline-block;margin:2px 4px 2px 0;padding:3px 10px;border-radius:999px;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);color:#c4b5fd;font-size:12px">#' . h($tag) . '</span>';
+        }
+        echo '</p>' . "\n";
+    }
+    if (!empty($site['social_links']) && is_array($site['social_links'])) {
+        echo '<p style="margin:16px 0"><strong style="color:#94a3b8;font-weight:500">社交：</strong>';
+        foreach ($site['social_links'] as $name => $url) {
+            if (!is_string($url) || trim($url) === '') continue;
+            echo '<a href="' . h($url) . '" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:2px 4px 2px 0;padding:4px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.08);color:#94a3b8;text-decoration:none;font-size:13px">' . h($name) . '</a>';
+        }
+        echo '</p>' . "\n";
+    }
+    echo '</div>' . "\n";
+    echo '</div>' . "\n";
 
     emit_foot($baseUrl);
     exit;

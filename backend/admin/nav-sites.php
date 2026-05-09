@@ -52,6 +52,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sort_order = intval($_POST['sort_order'] ?? 0);
                 $is_recommended = !empty($_POST['is_recommended']) ? 1 : 0;
 
+                // 详情页字段
+                $tags_raw = trim($_POST['tags'] ?? '');
+                $tags = $tags_raw === '' ? '' : implode(',', array_filter(array_map('trim', explode(',', $tags_raw))));
+                $rating = (float) ($_POST['rating'] ?? 0);
+                if ($rating < 0) $rating = 0;
+                if ($rating > 5) $rating = 5;
+                $screenshot_url = trim($_POST['screenshot_url'] ?? '');
+                if ($screenshot_url !== '' && !preg_match('#^https?://#i', $screenshot_url)) {
+                    $screenshot_url = 'https://' . $screenshot_url;
+                }
+                // social_links：表单按行 platform=url 格式收集
+                $social_raw = trim($_POST['social_links'] ?? '');
+                $social_map = [];
+                if ($social_raw !== '') {
+                    foreach (preg_split('/\r?\n/', $social_raw) as $line) {
+                        $line = trim($line);
+                        if ($line === '') continue;
+                        $parts = explode('=', $line, 2);
+                        if (count($parts) !== 2) continue;
+                        $key = strtolower(trim($parts[0]));
+                        $val = trim($parts[1]);
+                        if ($key === '' || $val === '') continue;
+                        if (!preg_match('#^https?://#i', $val)) {
+                            $val = 'https://' . $val;
+                        }
+                        $social_map[$key] = $val;
+                    }
+                }
+                $social_links_json = empty($social_map) ? '' : json_encode($social_map, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
                 if ($name === '') {
                     $error = '链接名称不能为空';
                 } elseif ($url === '') {
@@ -60,6 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'URL 格式不正确';
                 } elseif ($category_id <= 0) {
                     $error = '请选择所属分类';
+                } elseif ($screenshot_url !== '' && !filter_var($screenshot_url, FILTER_VALIDATE_URL)) {
+                    $error = '截图 URL 格式不正确';
                 } else {
                     try {
                         $cat_check = $db->prepare("SELECT COUNT(*) FROM nav_categories WHERE id = ?");
@@ -71,10 +103,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         if ($post_action === 'add') {
                             $stmt = $db->prepare("
-                                INSERT INTO nav_sites (category_id, name, url, description, icon, sort_order, is_recommended, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                INSERT INTO nav_sites (category_id, name, url, description, icon, sort_order, is_recommended, tags, rating, social_links, screenshot_url, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                             ");
-                            $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f']);
+                            $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $tags, $rating, $social_links_json, $screenshot_url]);
                             NavCache::invalidate();
                             log_admin_activity('nav_site:create', [
                                 'page' => 'nav-sites.php',
@@ -86,10 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $stmt = $db->prepare("
                                 UPDATE nav_sites
-                                SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, sort_order = ?, is_recommended = ?
+                                SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, sort_order = ?, is_recommended = ?,
+                                    tags = ?, rating = ?, social_links = ?, screenshot_url = ?
                                 WHERE id = ?
                             ");
-                            $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $id]);
+                            $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $tags, $rating, $social_links_json, $screenshot_url, $id]);
                             NavCache::invalidate();
                             log_admin_activity('nav_site:update', [
                                 'page' => 'nav-sites.php',
@@ -323,6 +356,59 @@ require_once __DIR__ . '/includes/header.php';
                                                    class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                                             <span class="ml-2 text-sm text-gray-700">显示在首页"新人推荐"模块</span>
                                         </label>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-6">
+                                    <h4 class="text-sm font-semibold text-gray-900 mb-4">详情页字段（选填）</h4>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">标签</label>
+                                            <input type="text" name="tags" maxlength="500"
+                                                   value="<?php echo htmlspecialchars($site_data['tags'] ?? ''); ?>"
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="DEX, 流动性, 以太坊">
+                                            <p class="mt-1 text-xs text-gray-500">英文逗号分隔，前端按 # 渲染</p>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">评分</label>
+                                            <input type="number" name="rating" min="0" max="5" step="0.1"
+                                                   value="<?php echo htmlspecialchars((string)($site_data['rating'] ?? 0)); ?>"
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="0 ~ 5">
+                                            <p class="mt-1 text-xs text-gray-500">0~5 分，留 0 不显示</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-6">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">官网截图 URL</label>
+                                        <input type="text" name="screenshot_url" maxlength="500"
+                                               value="<?php echo htmlspecialchars($site_data['screenshot_url'] ?? ''); ?>"
+                                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                               placeholder="https://... （留空则前端用 mshots 自动截图）">
+                                        <p class="mt-1 text-xs text-gray-500">留空时前端自动调用 s.wordpress.com/mshots 生成</p>
+                                    </div>
+
+                                    <div class="mt-6">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">社交链接</label>
+                                        <textarea name="social_links" rows="4"
+                                                  class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                                  placeholder="twitter=https://twitter.com/uniswap&#10;discord=https://discord.gg/xxx&#10;github=https://github.com/Uniswap&#10;docs=https://docs.uniswap.org"><?php
+                                                  // 把存的 JSON 反序列化成 key=val 行供编辑
+                                                  $social_text = '';
+                                                  if (!empty($site_data['social_links'])) {
+                                                      $decoded = json_decode($site_data['social_links'], true);
+                                                      if (is_array($decoded)) {
+                                                          foreach ($decoded as $k => $v) {
+                                                              $social_text .= $k . '=' . $v . "\n";
+                                                          }
+                                                      }
+                                                  }
+                                                  echo htmlspecialchars(rtrim($social_text));
+                                                  ?></textarea>
+                                        <p class="mt-1 text-xs text-gray-500">每行一条，格式 <code>platform=url</code>。已识别的 platform：twitter / x / discord / telegram / github / medium / youtube / reddit / linkedin / docs / blog</p>
                                     </div>
                                 </div>
 
