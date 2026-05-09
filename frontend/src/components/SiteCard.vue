@@ -1,8 +1,9 @@
 <template>
-  <a
-    :href="site.url"
-    target="_blank"
-    rel="noopener noreferrer"
+  <component
+    :is="hasDetail ? 'router-link' : 'a'"
+    v-bind="hasDetail
+      ? { to: { name: 'project', params: { id: site.id } } }
+      : { href: site.url, target: '_blank', rel: 'noopener noreferrer' }"
     class="site-card"
     :class="{ 'is-featured': site.is_recommended }"
     @click="onClick"
@@ -23,7 +24,7 @@
         <path d="M7 17 17 7M7 7h10v10" />
       </svg>
     </div>
-  </a>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -34,6 +35,8 @@ import { useFavorites } from '../composables/useFavorites'
 const props = defineProps<{ site: Site }>()
 const { trackVisit, visitCount } = useFavorites()
 const visits = computed(() => visitCount(props.site.url))
+// 有 id 才路由到详情页；没有 id（静态 fallback 数据）时降级为外链
+const hasDetail = computed(() => typeof props.site.id === 'number' && props.site.id > 0)
 
 function onClick() {
   trackVisit(props.site.url)
