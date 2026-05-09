@@ -802,6 +802,20 @@ class DatabaseAdmin {
             $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN is_recommended BOOLEAN DEFAULT FALSE");
         }
 
+        // 项目详情页所需字段：标签、评分、社交链接、截图 URL
+        if (!db_column_exists($this->pdo, 'nav_sites', 'tags')) {
+            $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN tags VARCHAR(500) DEFAULT ''");
+        }
+        if (!db_column_exists($this->pdo, 'nav_sites', 'rating')) {
+            $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN rating NUMERIC(2,1) DEFAULT 0");
+        }
+        if (!db_column_exists($this->pdo, 'nav_sites', 'social_links')) {
+            $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN social_links TEXT DEFAULT ''");
+        }
+        if (!db_column_exists($this->pdo, 'nav_sites', 'screenshot_url')) {
+            $this->pdo->exec("ALTER TABLE nav_sites ADD COLUMN screenshot_url VARCHAR(500) DEFAULT ''");
+        }
+
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_nav_sites_recommended ON nav_sites(is_recommended) WHERE is_recommended = TRUE");
 
         // 老库补 slug 列

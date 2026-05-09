@@ -89,7 +89,9 @@ try {
                         c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug, c.icon AS cat_icon, c.sort_order AS cat_sort,
                         s.id AS site_id, s.name AS site_name, s.url AS site_url,
                         s.description AS site_desc, s.icon AS site_icon,
-                        s.sort_order AS site_sort, s.is_recommended AS site_rec
+                        s.sort_order AS site_sort, s.is_recommended AS site_rec,
+                        s.tags AS site_tags, s.rating AS site_rating,
+                        s.social_links AS site_social, s.screenshot_url AS site_shot
                     FROM nav_categories c
                     LEFT JOIN nav_sites s ON s.category_id = c.id
                     ORDER BY c.sort_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
@@ -108,15 +110,20 @@ try {
                         ];
                     }
                     if ($row['site_id'] !== null) {
-                        $byCat[$cid]['sites'][] = [
-                            'id' => (int)$row['site_id'],
+                        $byCat[$cid]['sites'][] = nav_serialize_site_row([
+                            'id' => $row['site_id'],
                             'name' => $row['site_name'],
                             'url' => $row['site_url'],
                             'description' => $row['site_desc'],
                             'icon' => $row['site_icon'],
-                            'sort_order' => (int)$row['site_sort'],
-                            'is_recommended' => !empty($row['site_rec']) && $row['site_rec'] !== 'f' && $row['site_rec'] !== '0',
-                        ];
+                            'sort_order' => $row['site_sort'],
+                            'category_id' => $cid,
+                            'is_recommended' => $row['site_rec'],
+                            'tags' => $row['site_tags'],
+                            'rating' => $row['site_rating'],
+                            'social_links' => $row['site_social'],
+                            'screenshot_url' => $row['site_shot'],
+                        ]);
                     }
                 }
                 $cats = array_values($byCat);
@@ -130,28 +137,65 @@ try {
             $cacheKey = 'sites_' . ($categoryId > 0 ? $categoryId : 'all');
             $rows = NavCache::get($cacheKey, 60);
             if ($rows === null) {
-                $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended FROM nav_sites';
+                $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended,
+                               tags, rating, social_links, screenshot_url FROM nav_sites';
                 if ($categoryId > 0) {
                     $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
                     $stmt->execute([$categoryId]);
                 } else {
                     $stmt = $db->query($sql . ' ORDER BY sort_order ASC, id ASC');
                 }
-                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($rows as &$row) {
-                    $row['is_recommended'] = !empty($row['is_recommended']) && $row['is_recommended'] !== 'f' && $row['is_recommended'] !== '0';
-                }
-                unset($row);
+                $rows = array_map('nav_serialize_site_row', $stmt->fetchAll(PDO::FETCH_ASSOC));
                 NavCache::set($cacheKey, $rows);
             }
             header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
             $responsePayload = api_build_success_payload($rows, $requestId);
             $statusCode = 200;
+        } elseif (count($segments) === 3 && $segments[1] === 'sites' && ctype_digit($segments[2])) {
+            $siteId = (int) $segments[2];
+            $cacheKey = 'site_' . $siteId;
+            $site = NavCache::get($cacheKey, 60);
+            if ($site === null) {
+                $stmt = $db->prepare('
+                    SELECT s.id, s.name, s.url, s.description, s.icon, s.sort_order, s.category_id,
+                           s.is_recommended, s.tags, s.rating, s.social_links, s.screenshot_url,
+                           c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
+                    FROM nav_sites s
+                    LEFT JOIN nav_categories c ON c.id = s.category_id
+                    WHERE s.id = ?
+                    LIMIT 1
+                ');
+                $stmt->execute([$siteId]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$row) {
+                    throw new ApiException('not_found', '项目不存在', 404);
+                }
+                $site = nav_serialize_site_row($row);
+                $site['category'] = $row['category_id'] ? [
+                    'id' => (int) $row['category_id'],
+                    'name' => $row['category_name'],
+                    'slug' => $row['category_slug'] ?: ('cat-' . (int) $row['category_id']),
+                    'icon' => $row['category_icon'],
+                ] : null;
+                NavCache::set($cacheKey, $site);
+            }
+            header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+            $responsePayload = api_build_success_payload($site, $requestId);
+            $statusCode = 200;
         } elseif (count($segments) === 2 && $segments[1] === 'recommended') {
             $rows = NavCache::get('recommended', 60);
             if ($rows === null) {
-                $stmt = $db->query('SELECT id, name, url, description, icon, sort_order, category_id FROM nav_sites WHERE is_recommended = TRUE ORDER BY sort_order ASC, id ASC');
-                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $stmt = $db->query('
+                    SELECT id, name, url, description, icon, sort_order, category_id,
+                           tags, rating, social_links, screenshot_url
+                    FROM nav_sites
+                    WHERE is_recommended = TRUE
+                    ORDER BY sort_order ASC, id ASC
+                ');
+                $rows = array_map(function ($r) {
+                    $r['is_recommended'] = true;
+                    return nav_serialize_site_row($r);
+                }, $stmt->fetchAll(PDO::FETCH_ASSOC));
                 NavCache::set('recommended', $rows);
             }
             header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
@@ -367,6 +411,39 @@ try {
 }
 
 api_emit_payload($responsePayload, $statusCode);
+
+function nav_serialize_site_row(array $row): array {
+    $isRec = $row['is_recommended'] ?? false;
+    if (is_string($isRec)) {
+        $isRec = $isRec !== '' && $isRec !== 'f' && $isRec !== '0';
+    } else {
+        $isRec = (bool) $isRec;
+    }
+    $tagsRaw = trim((string) ($row['tags'] ?? ''));
+    $tags = $tagsRaw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $tagsRaw))));
+    $socialRaw = trim((string) ($row['social_links'] ?? ''));
+    $social = (object) [];
+    if ($socialRaw !== '') {
+        $decoded = json_decode($socialRaw, true);
+        if (is_array($decoded)) {
+            $social = $decoded;
+        }
+    }
+    return [
+        'id' => (int) $row['id'],
+        'name' => $row['name'],
+        'url' => $row['url'],
+        'description' => $row['description'] ?? '',
+        'icon' => $row['icon'] ?? '',
+        'sort_order' => (int) ($row['sort_order'] ?? 0),
+        'category_id' => isset($row['category_id']) ? (int) $row['category_id'] : null,
+        'is_recommended' => $isRec,
+        'tags' => $tags,
+        'rating' => isset($row['rating']) ? (float) $row['rating'] : 0.0,
+        'social_links' => $social,
+        'screenshot_url' => $row['screenshot_url'] ?? '',
+    ];
+}
 
 function api_detect_client_ip(): string {
     $candidates = [
