@@ -102,9 +102,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         if ($post_action === 'add') {
+                            // Phase 0：tags=text[]/social_links=jsonb；空串 -> '{}' 默认值
                             $stmt = $db->prepare("
                                 INSERT INTO nav_sites (category_id, name, url, description, icon, sort_order, is_recommended, tags, rating, social_links, screenshot_url, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                VALUES (?, ?, ?, ?, ?, ?, ?,
+                                        COALESCE(string_to_array(NULLIF(?, ''), ','), '{}'::text[]),
+                                        ?,
+                                        COALESCE(NULLIF(?, '')::jsonb, '{}'::jsonb),
+                                        ?, CURRENT_TIMESTAMP)
                             ");
                             $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $tags, $rating, $social_links_json, $screenshot_url]);
                             NavCache::invalidate();
@@ -116,10 +121,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             header('Location: nav-sites.php?message=' . urlencode('链接已添加') . ($filter_category ? '&category_id=' . $filter_category : ''));
                             exit;
                         } else {
+                            // Phase 0：tags=text[]/social_links=jsonb；空串 -> '{}' 默认值
                             $stmt = $db->prepare("
                                 UPDATE nav_sites
                                 SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, sort_order = ?, is_recommended = ?,
-                                    tags = ?, rating = ?, social_links = ?, screenshot_url = ?
+                                    tags = COALESCE(string_to_array(NULLIF(?, ''), ','), '{}'::text[]),
+                                    rating = ?,
+                                    social_links = COALESCE(NULLIF(?, '')::jsonb, '{}'::jsonb),
+                                    screenshot_url = ?
                                 WHERE id = ?
                             ");
                             $stmt->execute([$category_id, $name, $url, $description, $icon, $sort_order, $is_recommended ? 't' : 'f', $tags, $rating, $social_links_json, $screenshot_url, $id]);
@@ -198,7 +207,13 @@ try {
 $site_data = [];
 if ($action === 'edit' && $id > 0) {
     try {
-        $stmt = $db->prepare("SELECT * FROM nav_sites WHERE id = ?");
+        // Phase 0：tags=text[]/social_links=jsonb，cast 回字符串让表单回填不变
+        $stmt = $db->prepare("
+            SELECT id, category_id, name, url, description, icon, sort_order, is_recommended,
+                   array_to_string(tags, ',') AS tags, rating,
+                   social_links::text AS social_links, screenshot_url, created_at
+            FROM nav_sites WHERE id = ?
+        ");
         $stmt->execute([$id]);
         $site_data = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$site_data) {
@@ -215,7 +230,10 @@ $sites = [];
 if ($action === 'list') {
     try {
         $sql = "
-            SELECT s.*, c.name AS category_name, c.icon AS category_icon
+            SELECT s.id, s.category_id, s.name, s.url, s.description, s.icon, s.sort_order, s.is_recommended,
+                   array_to_string(s.tags, ',') AS tags, s.rating,
+                   s.social_links::text AS social_links, s.screenshot_url, s.created_at,
+                   c.name AS category_name, c.icon AS category_icon
             FROM nav_sites s
             LEFT JOIN nav_categories c ON c.id = s.category_id
         ";

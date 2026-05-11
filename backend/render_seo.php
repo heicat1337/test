@@ -66,13 +66,14 @@ function load_categories(PDO $db): array
     if ($cached !== null) {
         return $cached;
     }
+    // Phase 0：tags=text[]/social_links=jsonb，cast 回字符串让下游 explode/json_decode 不动
     $stmt = $db->query('
         SELECT
             c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug, c.icon AS cat_icon, c.sort_order AS cat_sort,
             s.id AS site_id, s.name AS site_name, s.url AS site_url, s.description AS site_desc,
             s.icon AS site_icon, s.sort_order AS site_sort, s.is_recommended AS site_rec,
-            s.tags AS site_tags, s.rating AS site_rating,
-            s.social_links AS site_social, s.screenshot_url AS site_shot
+            array_to_string(s.tags, \',\') AS site_tags, s.rating AS site_rating,
+            s.social_links::text AS site_social, s.screenshot_url AS site_shot
         FROM nav_categories c
         LEFT JOIN nav_sites s ON s.category_id = c.id
         ORDER BY c.sort_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
@@ -121,7 +122,9 @@ function load_site_detail(PDO $db, int $id): ?array
     }
     $stmt = $db->prepare('
         SELECT s.id, s.name, s.url, s.description, s.icon, s.sort_order, s.category_id,
-               s.is_recommended, s.tags, s.rating, s.social_links, s.screenshot_url,
+               s.is_recommended,
+               array_to_string(s.tags, \',\') AS tags, s.rating,
+               s.social_links::text AS social_links, s.screenshot_url,
                c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
         FROM nav_sites s
         LEFT JOIN nav_categories c ON c.id = s.category_id

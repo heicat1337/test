@@ -84,14 +84,16 @@ try {
             $cats = NavCache::get('categories', 60);
             if ($cats === null) {
                 // 单查询 + PHP 端 group by，消除原本 1 + N 的 SQL 往返
+                // Phase 0 schema 升级后：tags=text[]、social_links=jsonb；
+                // 这里 cast 成 csv/json 字符串，让 nav_serialize_site_row() 的 explode/json_decode 不动。
                 $stmt = $db->query('
                     SELECT
                         c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug, c.icon AS cat_icon, c.sort_order AS cat_sort,
                         s.id AS site_id, s.name AS site_name, s.url AS site_url,
                         s.description AS site_desc, s.icon AS site_icon,
                         s.sort_order AS site_sort, s.is_recommended AS site_rec,
-                        s.tags AS site_tags, s.rating AS site_rating,
-                        s.social_links AS site_social, s.screenshot_url AS site_shot
+                        array_to_string(s.tags, \',\') AS site_tags, s.rating AS site_rating,
+                        s.social_links::text AS site_social, s.screenshot_url AS site_shot
                     FROM nav_categories c
                     LEFT JOIN nav_sites s ON s.category_id = c.id
                     ORDER BY c.sort_order ASC, c.id ASC, s.sort_order ASC, s.id ASC
@@ -138,7 +140,8 @@ try {
             $rows = NavCache::get($cacheKey, 60);
             if ($rows === null) {
                 $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended,
-                               tags, rating, social_links, screenshot_url FROM nav_sites';
+                               array_to_string(tags, \',\') AS tags, rating,
+                               social_links::text AS social_links, screenshot_url FROM nav_sites';
                 if ($categoryId > 0) {
                     $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
                     $stmt->execute([$categoryId]);
@@ -158,7 +161,9 @@ try {
             if ($site === null) {
                 $stmt = $db->prepare('
                     SELECT s.id, s.name, s.url, s.description, s.icon, s.sort_order, s.category_id,
-                           s.is_recommended, s.tags, s.rating, s.social_links, s.screenshot_url,
+                           s.is_recommended,
+                           array_to_string(s.tags, \',\') AS tags, s.rating,
+                           s.social_links::text AS social_links, s.screenshot_url,
                            c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
                     FROM nav_sites s
                     LEFT JOIN nav_categories c ON c.id = s.category_id
@@ -187,7 +192,8 @@ try {
             if ($rows === null) {
                 $stmt = $db->query('
                     SELECT id, name, url, description, icon, sort_order, category_id,
-                           tags, rating, social_links, screenshot_url
+                           array_to_string(tags, \',\') AS tags, rating,
+                           social_links::text AS social_links, screenshot_url
                     FROM nav_sites
                     WHERE is_recommended = TRUE
                     ORDER BY sort_order ASC, id ASC
