@@ -93,9 +93,11 @@ Compose still starts `geoflow` and nginx depends on it. That is intentional duri
    - Legacy `backend/sitemap.php` remains available in the old backend for rollback.
    - Validate with `scripts/verify-phase9-sitemap.sh`.
 
-3. **Freeze public PHP fallback**
-   - Replace broad `location ~ \.php$` proxy with an allowlist if it is still needed.
-   - Prefer returning `404` for arbitrary PHP paths.
+3. **Freeze public PHP fallback** 🚧 Phase 9.2 started
+   - Public access to legacy internal directories `/includes/` and `/bin/` is blocked.
+   - Broad root PHP fallback is still retained for legacy rollback routes; theme/lang assets remain proxied.
+   - Next step: replace broad `location ~ \.php$` with an explicit allowlist after traffic inventory is clean.
+   - Validate with `scripts/verify-phase9-legacy-guard.sh`.
 
 4. **Scheduler cutover**
    - Ensure old compose profile `scheduler` is not running.
