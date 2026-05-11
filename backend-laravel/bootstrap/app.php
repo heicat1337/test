@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'api.token' => \App\Http\Middleware\ApiTokenAuth::class,
+            'api.scope' => \App\Http\Middleware\RequireScope::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
