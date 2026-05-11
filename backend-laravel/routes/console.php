@@ -10,22 +10,25 @@ Artisan::command('inspire', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Phase 4：调度（双跑兼容）
+| Phase 7：Laravel 接管调度
 |--------------------------------------------------------------------------
+| Laravel Schedule 是主调度入口，老 backend bin/cron.php 不再需要跑。
 |
-| 默认情况下，老 backend 的 `web3-scheduler` 容器（docker-compose profile
-| `scheduler`）持续跑 bin/cron.php / worker.php。Laravel 端不重复消费——
-| 否则同一个 task 会被两边各入队一次。
+| 生产部署：
+|   * cron 配 `* * * * * cd /app && php artisan schedule:run`
+|   * docker-compose 起一个 long-running 容器跑 `php artisan geoflow:worker`
 |
-| 如果你**关闭**了老 scheduler 容器，想让 Laravel 来兜底调度，
-| 把下面的 Schedule 注释解开：
-|
-|   Schedule::command('geoflow:cron --script=cron')->everyMinute()->withoutOverlapping();
-|   Schedule::command('geoflow:cron --script=auto_publish')->everyFiveMinutes();
-|   Schedule::command('geoflow:cron --script=db_maintenance')->dailyAt('03:00');
-|   Schedule::command('geoflow:cron --script=health_check_cron')->everyTenMinutes();
-|   Schedule::command('geoflow:cron --script=rss_fetcher')->hourly();
-|
-| 然后启动 Laravel 的 cron 入口：
-|   `* * * * * cd /app && php artisan schedule:run >> /dev/null 2>&1`
+| 双跑期间：如果老 scheduler 容器（profile=scheduler）还在运行，
+| 它会和这里的 Schedule 同时入队同一个 task。下线老 scheduler 后 Phase 9 通切。
 */
+
+// 主调度：每分钟扫活跃任务入队（与老 bin/cron.php 行为对齐）
+Schedule::command('geoflow:cron-tick')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+// Phase 7.4 写完后启用：
+// Schedule::command('geoflow:auto-publish')->everyFiveMinutes();
+// Schedule::command('geoflow:db-maintenance')->dailyAt('03:00');
+// Schedule::command('geoflow:health-check')->everyTenMinutes();
+// Schedule::command('geoflow:rss-fetch')->hourly();
