@@ -1,11 +1,14 @@
 <?php
 
 use App\Http\Controllers\SeoController;
+use App\Http\Controllers\SitemapController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
 
 // =========================================================================
 // 爬虫专属 SSR（Phase 8 - 替代老 backend/render_seo.php）

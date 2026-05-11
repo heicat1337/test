@@ -87,10 +87,11 @@ Compose still starts `geoflow` and nginx depends on it. That is intentional duri
    - Check access logs for `/api`, `*.php`, `/heicat`, `/sitemap.xml`, `/themes`, `/lang`, `/includes`.
    - Anything with real traffic needs either Laravel parity or an explicit keep decision.
 
-2. **Move sitemap to Laravel**
-   - Add Laravel sitemap route/controller.
-   - Switch nginx `/sitemap.xml` to Laravel.
-   - Compare generated URLs with legacy `backend/sitemap.php`.
+2. **Move sitemap to Laravel** ✅ Phase 9.1 done
+   - Laravel route/controller now serves `/sitemap.xml`.
+   - nginx `/sitemap.xml` proxies to Laravel.
+   - Legacy `backend/sitemap.php` remains available in the old backend for rollback.
+   - Validate with `scripts/verify-phase9-sitemap.sh`.
 
 3. **Freeze public PHP fallback**
    - Replace broad `location ~ \.php$` proxy with an allowlist if it is still needed.
