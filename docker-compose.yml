@@ -52,6 +52,31 @@ services:
       postgres:
         condition: service_healthy
 
+  # Phase 1：新 Laravel 后端（与老 geoflow 并排跑）
+  # 镜像由 scripts/Dockerfile.composer-intl 本地构建：
+  #   docker build -t composer-intl:local -f scripts/Dockerfile.composer-intl scripts/
+  laravel:
+    image: composer-intl:local
+    container_name: web3-laravel
+    working_dir: /app
+    command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: "${DB_NAME:-geo_system}"
+      DB_USERNAME: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+    volumes:
+      - ./backend-laravel:/app
+    ports:
+      - "127.0.0.1:${LARAVEL_PORT:-18081}:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   nginx:
     build:
       context: .
@@ -63,6 +88,7 @@ services:
     restart: unless-stopped
     depends_on:
       - geoflow
+      - laravel
 
   scheduler:
     build:

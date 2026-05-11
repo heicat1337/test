@@ -1,0 +1,29 @@
+# 给 backend-laravel 跑 composer 用的临时镜像。
+# 在官方 composer:2 上加 ext-intl 和 ext-pdo_pgsql（Filament 4 + Laravel 连 PG 用）。
+# build:
+#   docker build -t composer-intl:local -f scripts/Dockerfile.composer-intl scripts/
+# 用法：
+#   docker run --rm -v $PWD/backend-laravel:/app -w /app composer-intl:local \
+#     require filament/filament:^4.0 -W --no-interaction
+
+FROM composer:2
+
+# composer:2 是 alpine 基础镜像，pecl/docker-php-ext-install 都在
+RUN apk add --no-cache --virtual .build-deps \
+        autoconf \
+        gcc \
+        g++ \
+        make \
+    && apk add --no-cache \
+        icu-dev \
+        postgresql-dev \
+        oniguruma-dev \
+    && docker-php-ext-install -j$(nproc) \
+        intl \
+        pdo_pgsql \
+        bcmath \
+    && apk del .build-deps
+
+# 用 root 跑 composer（容器内是临时操作，不操心权限）
+USER root
+WORKDIR /app
