@@ -94,7 +94,10 @@ class Article extends Model
         return $this->belongsTo(Author::class, 'author_id');
     }
 
-    // task() 关系待 Phase 4 AI/任务组迁好后再补
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class, 'task_id');
+    }
 
     // ---- Scopes ----
 
