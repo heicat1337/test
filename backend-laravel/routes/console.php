@@ -27,8 +27,20 @@ Schedule::command('geoflow:cron-tick')
     ->everyMinute()
     ->withoutOverlapping();
 
-// Phase 7.4 写完后启用：
-// Schedule::command('geoflow:auto-publish')->everyFiveMinutes();
-// Schedule::command('geoflow:db-maintenance')->dailyAt('03:00');
-// Schedule::command('geoflow:health-check')->everyTenMinutes();
-// Schedule::command('geoflow:rss-fetch')->hourly();
+// 健康检查：恢复卡死 job + 清过期 worker_heartbeats
+Schedule::command('geoflow:health-check')
+    ->everyTenMinutes();
+
+// 自动发布：把审核通过的 draft 改 published
+Schedule::command('geoflow:auto-publish')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+// RSS 抓取：每 2 小时一轮
+Schedule::command('geoflow:rss-fetch')
+    ->cron('0 */2 * * *')
+    ->withoutOverlapping();
+
+// 数据库清理 + VACUUM
+Schedule::command('geoflow:db-maintenance cleanup')->dailyAt('03:00');
+Schedule::command('geoflow:db-maintenance vacuum')->dailyAt('03:30');
