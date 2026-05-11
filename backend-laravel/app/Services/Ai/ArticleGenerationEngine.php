@@ -7,6 +7,7 @@ use App\Models\Article;
 use App\Models\Task;
 use App\Models\Title;
 use App\Services\Articles\ArticleWorkflow;
+use App\Services\Knowledge\KnowledgeRetrievalService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -34,7 +35,10 @@ class ArticleGenerationEngine
     private const MAX_TITLE_SKIP_ATTEMPTS = 50;
     private const MIN_CONTENT_LENGTH = 200;
 
-    public function __construct(private readonly AiService $ai = new AiService()) {}
+    public function __construct(
+        private readonly AiService $ai = new AiService(),
+        private readonly KnowledgeRetrievalService $knowledge = new KnowledgeRetrievalService(),
+    ) {}
 
     /**
      * 跑一次文章生成。
@@ -258,12 +262,30 @@ class ArticleGenerationEngine
     // ---- 高级特性 hooks（Phase 6.3 / 后续阶段实现）----
 
     /**
-     * 知识库 RAG 注入。当前 stub：原样返回。Phase 6.3 会接 EmbeddingService
-     * + KnowledgeRetrievalService 用 pgvector 检索相关 chunk 并注入 {{Knowledge}}。
+     * 知识库 RAG 注入：用标题 + 关键词作为查询，从 knowledge_chunks 取最相关的
+     * 片段拼成 context，渲染到 prompt 的 {{Knowledge}} 占位。
+     *
+     * 没绑定知识库 / 检索失败时静默退化为原 prompt（保留 {{Knowledge}} 占位由
+     * AiService 的 processPromptVariables 处理成空串）。
      */
     protected function applyKnowledgeContext(string $prompt, Task $task, Title $title): string
     {
-        // TODO Phase 6.3: 调 KnowledgeRetrievalService。
+        if (!$task->knowledge_base_id) {
+            return $prompt;
+        }
+        try {
+            $query = trim($title->title . ' ' . ($title->keyword ?? ''));
+            $result = $this->knowledge->fetchContext((int) $task->knowledge_base_id, $query);
+            if ($result['context'] !== '') {
+                return str_replace('{{Knowledge}}', $result['context'], $prompt);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('knowledge context fetch failed, skipping', [
+                'task_id'   => $task->id,
+                'kb_id'     => $task->knowledge_base_id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
         return $prompt;
     }
 
