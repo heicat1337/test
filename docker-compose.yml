@@ -92,6 +92,7 @@ services:
       - geoflow
       - laravel
 
+  # DEPRECATED: Phase 9.4 — replaced by laravel-scheduler (below)
   scheduler:
     build:
       context: ./backend
@@ -119,6 +120,7 @@ services:
       postgres:
         condition: service_healthy
 
+  # DEPRECATED: Phase 9.4 — replaced by laravel-worker (below)
   worker:
     build:
       context: ./backend
@@ -141,6 +143,57 @@ services:
       TZ: "${TZ:-Asia/Shanghai}"
     volumes:
       - ./backend:/var/www/html
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Phase 9.4：Laravel scheduler — 替代老 backend scheduler
+  laravel-scheduler:
+    image: composer-intl:local
+    container_name: web3-laravel-scheduler
+    profiles: ["scheduler"]
+    working_dir: /app
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          php /app/artisan schedule:run --verbose --no-interaction
+          sleep 60
+        done
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: "${DB_NAME:-geo_system}"
+      DB_USERNAME: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+    volumes:
+      - ./backend-laravel:/app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Phase 9.4：Laravel worker — 替代老 backend worker
+  laravel-worker:
+    image: composer-intl:local
+    container_name: web3-laravel-worker
+    profiles: ["scheduler"]
+    working_dir: /app
+    entrypoint: ["/app/docker/entrypoint.sh"]
+    command: ["php", "artisan", "geoflow:worker"]
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: "${DB_NAME:-geo_system}"
+      DB_USERNAME: "${DB_USER:-geo_user}"
+      DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
+    volumes:
+      - ./backend-laravel:/app
     restart: unless-stopped
     depends_on:
       postgres:
