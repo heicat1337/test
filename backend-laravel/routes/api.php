@@ -57,6 +57,11 @@ Route::prefix('v1')->middleware('api.token')->group(function () {
         ->middleware('api.scope:jobs:read')
         ->where('id', '\d+');
 
+    // AI 模型测试（仅需 api.token 鉴权，无需 scope）
+    Route::post('admin/ai-models/{id}/test', fn(int $id) => app(\App\Services\Ai\AiService::class)
+        ->testConnection(\App\Models\AiModel::findOrFail($id)))
+        ->where('id', '\d+');
+
     // Articles 管理路由（带 /admin 前缀避免与公开 list/by-slug 冲突）
     Route::prefix('admin/articles')->group(function () {
         Route::get('/',           [ArticleAdminController::class, 'index'])->middleware('api.scope:articles:read');

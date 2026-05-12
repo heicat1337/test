@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources\AiModels\Tables;
 
+use App\Models\AiModel;
+use App\Services\Ai\AiService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -53,6 +57,28 @@ class AiModelsTable
                 //
             ])
             ->recordActions([
+                Action::make('test')
+                    ->label('测试连接')
+                    ->icon('heroicon-o-signal')
+                    ->color('gray')
+                    ->action(function (AiModel $record): void {
+                        $result = app(AiService::class)->testConnection($record);
+
+                        $notification = Notification::make()
+                            ->title($result['success'] ? '连接成功' : '连接失败')
+                            ->body(sprintf(
+                                "%s\n耗时 %dms | %s",
+                                $result['message'],
+                                $result['meta']['duration_ms'],
+                                $result['meta']['endpoint'] ?: '—'
+                            ));
+
+                        if ($result['success']) {
+                            $notification->success()->send();
+                        } else {
+                            $notification->danger()->send();
+                        }
+                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([

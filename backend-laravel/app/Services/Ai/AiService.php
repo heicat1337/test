@@ -186,4 +186,126 @@ class AiService
         }
         return trim($content);
     }
+
+    /**
+     * 测试 AI 模型 API 连通性。
+     *
+     * 发起最小化请求（chat: 1 token 补全 / embedding: 短文本向量化），
+     * 不增加调用统计，不返回密钥。
+     *
+     * @return array{success:bool, message:string, meta:array}
+     */
+    public function testConnection(AiModel $model): array
+    {
+        $startedAt = microtime(true);
+        $modelType = $model->model_type ?: 'chat';
+
+        try {
+            if (empty($model->api_key)) {
+                return $this->testResult(false, 'API Key 未配置', $startedAt, $modelType);
+            }
+            if (empty($model->model_id)) {
+                return $this->testResult(false, '模型 ID 未配置', $startedAt, $modelType);
+            }
+
+            $endpoint = $this->resolveTestEndpoint($model, $modelType);
+            $payload  = $modelType === 'embedding'
+                ? ['model' => $model->model_id, 'input' => 'connection test']
+                : ['model' => $model->model_id, 'messages' => [['role' => 'user', 'content' => 'hi']], 'max_tokens' => 1];
+
+            $response = Http::withHeaders([
+                    'Content-Type'  => 'application/json',
+                    'Authorization' => 'Bearer ' . $model->api_key,
+                ])
+                ->timeout(30)
+                ->withoutVerifying()
+                ->post($endpoint, $payload);
+
+            $json = $response->json();
+
+            if (!$response->successful()) {
+                $preview = mb_strimwidth(preg_replace('/\s+/u', ' ', $response->body() ?: ''), 0, 200);
+                return $this->testResult(false, "HTTP {$response->status()}: {$preview}", $startedAt, $modelType, $endpoint, $response->status());
+            }
+
+            if (!$this->isValidTestResponse($json, $modelType)) {
+                $preview = mb_strimwidth(preg_replace('/\s+/u', ' ', $response->body() ?: ''), 0, 200);
+                return $this->testResult(false, "响应格式异常: {$preview}", $startedAt, $modelType, $endpoint, $response->status());
+            }
+
+            $label = $modelType === 'embedding' ? 'Embedding' : 'Chat';
+            return $this->testResult(true, "{$label} 模型连接正常", $startedAt, $modelType, $endpoint, $response->status());
+        } catch (\Throwable $e) {
+            return $this->testResult(false, "连接异常: {$e->getMessage()}", $startedAt, $modelType);
+        }
+    }
+
+    /**
+     * 根据模型类型解析测试端点。
+     */
+    private function resolveTestEndpoint(AiModel $model, string $modelType): string
+    {
+        $base = rtrim(trim((string) ($model->api_url ?? '')), '/');
+        if ($base === '') {
+            throw new \RuntimeException('API URL 未配置');
+        }
+
+        if ($modelType === 'embedding') {
+            if (!str_ends_with($base, '/embeddings')) {
+                if (!str_ends_with($base, '/v1')) {
+                    $base .= '/v1';
+                }
+                $base .= '/embeddings';
+            }
+            return $base;
+        }
+
+        // chat
+        if (!str_ends_with($base, '/chat/completions')) {
+            if (!str_ends_with($base, '/v1')) {
+                $base .= '/v1';
+            }
+            $base .= '/chat/completions';
+        }
+        return $base;
+    }
+
+    /**
+     * 验证测试响应结构是否合法。
+     */
+    private function isValidTestResponse(mixed $json, string $modelType): bool
+    {
+        if (!is_array($json)) {
+            return false;
+        }
+        if ($modelType === 'embedding') {
+            return isset($json['data'][0]['embedding']) && is_array($json['data'][0]['embedding']);
+        }
+        return isset($json['choices'][0]['message']['content'])
+            || isset($json['choices'][0]['text'])
+            || isset($json['choices'][0]['delta']['content']);
+    }
+
+    /**
+     * 统一测试结果结构。
+     */
+    private function testResult(
+        bool $success,
+        string $message,
+        float $startedAt,
+        string $modelType,
+        string $endpoint = '',
+        ?int $httpStatus = null
+    ): array {
+        return [
+            'success' => $success,
+            'message' => $message,
+            'meta'    => [
+                'model_type'  => $modelType,
+                'http_status' => $httpStatus,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'endpoint'    => $endpoint,
+            ],
+        ];
+    }
 }
