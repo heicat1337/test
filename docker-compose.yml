@@ -59,9 +59,11 @@ services:
     image: composer-intl:local
     container_name: web3-laravel
     working_dir: /app
+    entrypoint: ["/app/docker/entrypoint.sh"]
     command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
     environment:
       APP_ENV: local
+      AUTO_SEED: "${AUTO_SEED:-true}"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
