@@ -56,6 +56,9 @@ services:
   # 镜像由 scripts/Dockerfile.composer-intl 本地构建：
   #   docker build -t composer-intl:local -f scripts/Dockerfile.composer-intl scripts/
   laravel:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.composer-intl
     image: composer-intl:local
     container_name: web3-laravel
     working_dir: /app
@@ -94,6 +97,9 @@ services:
 
   # Phase 9.4：Laravel scheduler — 替代老 backend scheduler
   laravel-scheduler:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.composer-intl
     image: composer-intl:local
     container_name: web3-laravel-scheduler
     profiles: ["scheduler"]
@@ -122,6 +128,9 @@ services:
 
   # Phase 9.4：Laravel worker — 替代老 backend worker
   laravel-worker:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.composer-intl
     image: composer-intl:local
     container_name: web3-laravel-worker
     profiles: ["scheduler"]
