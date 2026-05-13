@@ -210,7 +210,7 @@ if ($action === 'edit' && $id > 0) {
         // Phase 0：tags=text[]/social_links=jsonb，cast 回字符串让表单回填不变
         $stmt = $db->prepare("
             SELECT id, category_id, name, url, description, icon, sort_order, is_recommended,
-                   array_to_string(tags, ',') AS tags, rating,
+                   trim(BOTH '{}' FROM tags::text) AS tags, rating,
                    social_links::text AS social_links, screenshot_url, created_at
             FROM nav_sites WHERE id = ?
         ");
@@ -231,7 +231,7 @@ if ($action === 'list') {
     try {
         $sql = "
             SELECT s.id, s.category_id, s.name, s.url, s.description, s.icon, s.sort_order, s.is_recommended,
-                   array_to_string(s.tags, ',') AS tags, s.rating,
+                   trim(BOTH '{}' FROM s.tags::text) AS tags, s.rating,
                    s.social_links::text AS social_links, s.screenshot_url, s.created_at,
                    c.name AS category_name, c.icon AS category_icon
             FROM nav_sites s

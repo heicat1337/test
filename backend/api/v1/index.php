@@ -92,7 +92,7 @@ try {
                         s.id AS site_id, s.name AS site_name, s.url AS site_url,
                         s.description AS site_desc, s.icon AS site_icon,
                         s.sort_order AS site_sort, s.is_recommended AS site_rec,
-                        array_to_string(s.tags, \',\') AS site_tags, s.rating AS site_rating,
+                        trim(BOTH '{}' FROM s.tags::text) AS site_tags, s.rating AS site_rating,
                         s.social_links::text AS site_social, s.screenshot_url AS site_shot
                     FROM nav_categories c
                     LEFT JOIN nav_sites s ON s.category_id = c.id
@@ -140,7 +140,7 @@ try {
             $rows = NavCache::get($cacheKey, 60);
             if ($rows === null) {
                 $sql = 'SELECT id, name, url, description, icon, sort_order, category_id, is_recommended,
-                               array_to_string(tags, \',\') AS tags, rating,
+                               trim(BOTH '{}' FROM tags::text) AS tags, rating,
                                social_links::text AS social_links, screenshot_url FROM nav_sites';
                 if ($categoryId > 0) {
                     $stmt = $db->prepare($sql . ' WHERE category_id = ? ORDER BY sort_order ASC, id ASC');
@@ -162,7 +162,7 @@ try {
                 $stmt = $db->prepare('
                     SELECT s.id, s.name, s.url, s.description, s.icon, s.sort_order, s.category_id,
                            s.is_recommended,
-                           array_to_string(s.tags, \',\') AS tags, s.rating,
+                           trim(BOTH '{}' FROM s.tags::text) AS tags, s.rating,
                            s.social_links::text AS social_links, s.screenshot_url,
                            c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon
                     FROM nav_sites s
@@ -192,7 +192,7 @@ try {
             if ($rows === null) {
                 $stmt = $db->query('
                     SELECT id, name, url, description, icon, sort_order, category_id,
-                           array_to_string(tags, \',\') AS tags, rating,
+                           trim(BOTH '{}' FROM tags::text) AS tags, rating,
                            social_links::text AS social_links, screenshot_url
                     FROM nav_sites
                     WHERE is_recommended = TRUE
