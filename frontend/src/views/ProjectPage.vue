@@ -26,33 +26,44 @@
     </div>
 
     <article v-else class="project-layout">
-      <section class="shot-col">
-        <div class="shot-frame">
-          <img
-            v-if="screenshotSrc"
-            :src="screenshotSrc"
-            :alt="`${site.name} 网站截图`"
-            class="shot-img"
-            loading="eager"
-            @error="onShotError"
-          />
-          <div v-else class="shot-fallback">
-            <span class="shot-fallback-icon">{{ site.icon || '🌐' }}</span>
-            <span class="shot-fallback-text">截图暂未生成</span>
-          </div>
+      <section class="action-col">
+        <div class="action-card">
+          <div class="action-icon">{{ site.icon || '🌐' }}</div>
+          <h2 class="action-title">{{ site.name }} 入口</h2>
+          <p class="action-desc">优先通过官方入口访问，注册前可以先查看教程和注意事项。</p>
+
+          <a
+            :href="site.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="cta-btn"
+            @click="onVisit"
+          >
+            访问官网
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M7 17 17 7M7 7h10v10" />
+            </svg>
+          </a>
         </div>
-        <a
-          :href="site.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="cta-btn"
-          @click="onVisit"
-        >
-          访问官网
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M7 17 17 7M7 7h10v10" />
-          </svg>
-        </a>
+
+        <div class="guide-card">
+          <h3 class="guide-title">注册教程与攻略</h3>
+          <div v-if="guideEntries.length" class="guide-list">
+            <a
+              v-for="entry in guideEntries"
+              :key="entry.key"
+              :href="entry.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="guide-link"
+            >
+              <span class="guide-icon">{{ entry.icon }}</span>
+              <span class="guide-text">{{ entry.label }}</span>
+              <span class="guide-arrow">↗</span>
+            </a>
+          </div>
+          <p v-else class="guide-empty">暂无教程链接，可在后台“社交链接”里添加 tutorial / guide / docs。</p>
+        </div>
       </section>
 
       <section class="info-col">
@@ -115,7 +126,6 @@ import { useFavorites } from '../composables/useFavorites'
 const route = useRoute()
 const site = ref<SiteDetail | null>(null)
 const loading = ref(true)
-const shotErrored = ref(false)
 const { trackVisit } = useFavorites()
 let inflight: AbortController | null = null
 
@@ -124,30 +134,39 @@ const id = computed(() => String(route.params.id || ''))
 const rating = computed(() => Number(site.value?.rating || 0))
 const tags = computed(() => site.value?.tags || [])
 
-const SOCIAL_META: Record<string, { label: string; icon: string }> = {
-  twitter: { label: 'Twitter / X', icon: '𝕏' },
-  x: { label: 'Twitter / X', icon: '𝕏' },
-  discord: { label: 'Discord', icon: '💬' },
-  telegram: { label: 'Telegram', icon: '✈️' },
-  github: { label: 'GitHub', icon: '🐙' },
-  medium: { label: 'Medium', icon: 'M' },
-  youtube: { label: 'YouTube', icon: '▶' },
-  reddit: { label: 'Reddit', icon: '🤖' },
-  linkedin: { label: 'LinkedIn', icon: 'in' },
-  docs: { label: '文档', icon: '📖' },
-  blog: { label: '博客', icon: '📝' },
+const SOCIAL_META: Record<string, { label: string; icon: string; group?: 'guide' | 'social' }> = {
+  tutorial: { label: '注册教程', icon: '📘', group: 'guide' },
+  guide: { label: '使用攻略', icon: '🧭', group: 'guide' },
+  register_guide: { label: '注册指南', icon: '📝', group: 'guide' },
+  article: { label: '相关文章', icon: '📰', group: 'guide' },
+  docs: { label: '文档', icon: '📖', group: 'guide' },
+  blog: { label: '博客', icon: '📝', group: 'guide' },
+  twitter: { label: 'Twitter / X', icon: '𝕏', group: 'social' },
+  x: { label: 'Twitter / X', icon: '𝕏', group: 'social' },
+  discord: { label: 'Discord', icon: '💬', group: 'social' },
+  telegram: { label: 'Telegram', icon: '✈️', group: 'social' },
+  github: { label: 'GitHub', icon: '🐙', group: 'social' },
+  medium: { label: 'Medium', icon: 'M', group: 'social' },
+  youtube: { label: 'YouTube', icon: '▶', group: 'social' },
+  reddit: { label: 'Reddit', icon: '🤖', group: 'social' },
+  linkedin: { label: 'LinkedIn', icon: 'in', group: 'social' },
 }
 
-const socialEntries = computed(() => {
+type LinkEntry = { key: string; url: string; label: string; icon: string; group?: 'guide' | 'social' }
+
+const linkEntries = computed<LinkEntry[]>(() => {
   const links = site.value?.social_links
   if (!links || typeof links !== 'object') return []
   return Object.entries(links)
     .filter(([, url]) => typeof url === 'string' && url.trim() !== '')
     .map(([key, url]) => {
-      const meta = SOCIAL_META[key.toLowerCase()] || { label: key, icon: '🔗' }
+      const meta = SOCIAL_META[key.toLowerCase()] || { label: key, icon: '🔗', group: 'social' as const }
       return { key, url: String(url), ...meta }
     })
 })
+
+const guideEntries = computed(() => linkEntries.value.filter((entry) => entry.group === 'guide'))
+const socialEntries = computed(() => linkEntries.value.filter((entry) => entry.group !== 'guide'))
 
 const shortUrl = computed(() => {
   try {
@@ -158,18 +177,6 @@ const shortUrl = computed(() => {
   }
 })
 
-const screenshotSrc = computed(() => {
-  if (!site.value?.url) return ''
-  if (shotErrored.value) return ''
-  if (site.value.screenshot_url) return site.value.screenshot_url
-  // mshots 是 WordPress 的免费截图服务，第一次访问可能慢但后续 CDN 缓存
-  return `https://s.wordpress.com/mshots/v1/${encodeURIComponent(site.value.url)}?w=900&h=600`
-})
-
-function onShotError() {
-  shotErrored.value = true
-}
-
 function onVisit() {
   if (site.value?.url) trackVisit(site.value.url)
 }
@@ -178,7 +185,6 @@ async function load(): Promise<void> {
   inflight?.abort()
   inflight = new AbortController()
   loading.value = true
-  shotErrored.value = false
   try {
     site.value = await fetchSiteById(id.value, inflight.signal)
   } catch (err: any) {
@@ -270,27 +276,57 @@ onUnmounted(() => inflight?.abort())
   align-items: start;
 }
 
-.shot-col { display: flex; flex-direction: column; gap: 16px; }
+.action-col { display: flex; flex-direction: column; gap: 16px; }
 
-.shot-frame {
+.action-card,
+.guide-card {
   position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 2;
   border-radius: var(--radius-lg);
-  overflow: hidden;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
+  padding: 24px;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top left, rgba(0, 212, 255, 0.12), transparent 45%);
+    pointer-events: none;
+  }
 }
 
-.shot-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.action-icon {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  border-radius: 20px;
+  margin-bottom: 18px;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
 
-.shot-fallback {
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 12px; color: var(--text-tertiary);
-  .shot-fallback-icon { font-size: 64px; }
-  .shot-fallback-text { font-size: 13px; }
+.action-title,
+.guide-title {
+  position: relative;
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.action-title { font-size: 22px; }
+.guide-title { font-size: 17px; }
+
+.action-desc {
+  position: relative;
+  margin: 0 0 20px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 14px;
 }
 
 .cta-btn {
@@ -315,6 +351,46 @@ onUnmounted(() => inflight?.abort())
   }
 
   svg { width: 18px; height: 18px; }
+}
+
+.guide-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    color: var(--neon-blue);
+    border-color: var(--border-glow);
+    background: rgba(0, 212, 255, 0.06);
+    transform: translateY(-1px);
+  }
+}
+
+.guide-icon { font-size: 17px; line-height: 1; }
+.guide-text { font-size: 14px; font-weight: 600; }
+.guide-arrow { color: var(--text-tertiary); font-size: 13px; }
+
+.guide-empty {
+  position: relative;
+  margin: 0;
+  color: var(--text-tertiary);
+  line-height: 1.7;
+  font-size: 13px;
 }
 
 .info-col { display: flex; flex-direction: column; gap: 20px; }
@@ -488,7 +564,7 @@ onUnmounted(() => inflight?.abort())
 
 @include responsive(tablet) {
   .project-layout, .loading { grid-template-columns: 1fr; }
-  .shot-col { max-width: 100%; }
+  .action-col { max-width: 100%; }
 }
 
 @include responsive(mobile) {
