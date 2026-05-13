@@ -3,8 +3,10 @@ set -eu
 
 cd /app
 
-echo "[laravel-entrypoint] Running migrations..."
-php artisan migrate --force --no-interaction
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+  echo "[laravel-entrypoint] Running migrations..."
+  php artisan migrate --force --no-interaction
+fi
 
 if [ "${AUTO_SEED:-true}" = "true" ]; then
   echo "[laravel-entrypoint] Running seeders..."

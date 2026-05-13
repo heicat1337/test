@@ -139,6 +139,7 @@ services:
     command: ["php", "artisan", "geoflow:worker"]
     environment:
       APP_ENV: local
+      RUN_MIGRATIONS: "false"
       AUTO_SEED: "false"
       DB_CONNECTION: pgsql
       DB_HOST: postgres

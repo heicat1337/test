@@ -28,11 +28,7 @@ BEGIN
         ALTER TABLE nav_sites ALTER COLUMN tags DROP DEFAULT;
         ALTER TABLE nav_sites ALTER COLUMN tags TYPE text[] USING (
             CASE WHEN tags IS NULL OR btrim(tags::text) = '' THEN '{}'::text[]
-                 ELSE (
-                    SELECT COALESCE(array_agg(btrim(t)), '{}'::text[])
-                    FROM unnest(string_to_array(tags::text, ',')) AS t
-                    WHERE btrim(t) <> ''
-                 )
+                 ELSE array_remove(regexp_split_to_array(btrim(tags::text), '\\s*,\\s*'), '')
             END
         );
         ALTER TABLE nav_sites ALTER COLUMN tags SET DEFAULT '{}'::text[];
