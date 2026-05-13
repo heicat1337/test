@@ -2,8 +2,12 @@
 cd /opt/web3 || exit 1
 git pull || exit 1
 
-# 用 scheduler profile，确保 scheduler/worker 也跟着停 + 重建（否则它们会停在旧镜像）
-docker compose --profile scheduler down
+# 用 scheduler profile，并清掉旧版本遗留的 orphan 容器（例如老 scheduler/worker）
+docker compose --profile scheduler down --remove-orphans
+
+# 保险：旧版服务已经从 compose 移除，但某些 Docker Compose 版本不会彻底清 orphan
+# 这里显式清掉旧 scheduler/worker，避免新旧调度器双跑。
+docker rm -f web3-scheduler web3-worker 2>/dev/null || true
 
 # 构建并启动所有服务；如遇 buildkit 快照损坏（"parent snapshot ... does not exist"），
 # 自动清掉 builder 缓存后重试一次（数据卷 pgdata 不受影响）
