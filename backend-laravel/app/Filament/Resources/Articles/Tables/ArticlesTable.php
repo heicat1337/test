@@ -139,8 +139,9 @@ class ArticlesTable
                     ->visible(fn ($record) => $record && $record->status !== 'published' && !$record->trashed())
                     ->action(function ($record) {
                         $record->update([
-                            'status'       => 'published',
-                            'published_at' => $record->published_at ?: now(),
+                            'status'        => 'published',
+                            'review_status' => 'approved',
+                            'published_at'  => $record->published_at ?: now(),
                         ]);
                     }),
 
@@ -156,7 +157,11 @@ class ArticlesTable
                     ->icon('heroicon-m-x-circle')
                     ->color('danger')
                     ->visible(fn ($record) => $record && $record->review_status === 'pending' && !$record->trashed())
-                    ->action(fn ($record) => $record->update(['review_status' => 'rejected'])),
+                    ->action(fn ($record) => $record->update([
+                        'status'        => 'draft',
+                        'review_status' => 'rejected',
+                        'published_at'  => null,
+                    ])),
 
                 EditAction::make(),
                 DeleteAction::make(),
