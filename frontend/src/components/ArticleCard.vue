@@ -3,15 +3,10 @@
     <div class="card-glow"></div>
     <div class="card-body">
       <div class="card-meta">
-        <span v-if="article.category_name" class="card-category">{{ article.category_name }}</span>
         <span class="card-date">{{ formatDate(article.published_at) }}</span>
       </div>
       <h3 class="card-title">{{ article.title }}</h3>
       <p class="card-excerpt">{{ article.excerpt }}</p>
-      <div class="card-footer">
-        <span v-if="article.author_name" class="card-author">{{ article.author_name }}</span>
-        <span class="card-views">{{ article.view_count }} 阅读</span>
-      </div>
     </div>
   </router-link>
 </template>
@@ -69,14 +64,6 @@ function formatDate(dateStr: string): string {
   font-size: 12px;
 }
 
-.card-category {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(0, 212, 255, 0.1);
-  color: var(--neon-blue);
-  font-weight: 500;
-}
-
 .card-date { color: var(--text-tertiary); }
 
 .card-title {
@@ -100,14 +87,6 @@ function formatDate(dateStr: string): string {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: 14px;
-}
-
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-tertiary);
+  margin-bottom: 0;
 }
 </style>
