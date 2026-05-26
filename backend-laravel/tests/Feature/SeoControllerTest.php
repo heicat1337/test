@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Article;
 use App\Models\NavCategory;
 use App\Models\NavSite;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -30,6 +31,17 @@ function seoSite(int $catId, array $overrides = []): NavSite
         'description' => 'desc',
         'icon'   => '🦄',
         'sort_order' => 1,
+    ], $overrides));
+}
+
+function seoArticle(array $overrides = []): Article
+{
+    return Article::create(array_merge([
+        'title'        => 'Test_' . uniqid(),
+        'slug'         => 'art-' . uniqid(),
+        'content'      => '<p>正文段落内容</p>',
+        'status'       => 'published',
+        'published_at' => now(),
     ], $overrides));
 }
 
@@ -108,5 +120,63 @@ describe('GET /__seo/project/{id}', function () {
     it('respects pure number id route constraint', function () {
         $r = $this->get('/__seo/project/abc');
         $r->assertStatus(404);
+    });
+});
+
+describe('GET /__seo/article/{slug}', function () {
+    it('renders a published article with self-referencing canonical', function () {
+        Cache::flush();
+        $a = seoArticle([
+            'slug'             => 'my-web3-guide',
+            'title'            => '什么是 Layer2',
+            'content'          => '<p>Layer2 是扩容方案。</p>',
+            'meta_description' => '一文读懂 Layer2 扩容',
+        ]);
+
+        $r = $this->get('/__seo/article/' . $a->slug);
+        $r->assertOk()
+            ->assertSee('什么是 Layer2')
+            ->assertSee('Layer2 是扩容方案', false)
+            ->assertSee('一文读懂 Layer2 扩容')
+            ->assertSee('"@type":"Article"', false)
+            ->assertSee('BreadcrumbList', false);
+
+        // 核心验收：canonical 必须自指文章，绝不是首页（Nova #73）。
+        $r->assertSee('rel="canonical" href="' . config('app.url') . '/articles/my-web3-guide"', false);
+        expect($r->headers->get('X-Robots-Tag'))->toBe('index,follow');
+    });
+
+    it('emits og:image / twitter:image (Iris #67)', function () {
+        Cache::flush();
+        $a = seoArticle(['featured_image' => 'https://cdn.test/x.png']);
+
+        $r = $this->get('/__seo/article/' . $a->slug);
+        $r->assertOk()
+            ->assertSee('property="og:image" content="https://cdn.test/x.png"', false)
+            ->assertSee('name="twitter:image" content="https://cdn.test/x.png"', false)
+            ->assertSee('property="og:type" content="article"', false);
+    });
+
+    it('falls back description to excerpt then content when meta empty', function () {
+        Cache::flush();
+        $a = seoArticle([
+            'meta_description' => '',
+            'excerpt'          => '这是摘要文字',
+            'content'          => '<p>这是正文</p>',
+        ]);
+
+        $r = $this->get('/__seo/article/' . $a->slug);
+        $r->assertOk()->assertSee('这是摘要文字');
+    });
+
+    it('returns 404 + noindex for unpublished or missing article', function () {
+        Cache::flush();
+        $draft = seoArticle(['status' => 'draft', 'published_at' => null]);
+
+        $r = $this->get('/__seo/article/' . $draft->slug);
+        $r->assertStatus(404)->assertSee('未找到文章');
+        expect($r->headers->get('X-Robots-Tag'))->toBe('noindex,follow');
+
+        $this->get('/__seo/article/never-exists-' . uniqid())->assertStatus(404);
     });
 });
