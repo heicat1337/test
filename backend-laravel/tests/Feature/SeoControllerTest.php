@@ -169,6 +169,19 @@ describe('GET /__seo/article/{slug}', function () {
         $r->assertOk()->assertSee('这是摘要文字');
     });
 
+    it('keeps original keyword in meta description', function () {
+        Cache::flush();
+        $a = seoArticle([
+            'original_keyword' => '比特币现货ETF',
+            'meta_description' => '资金流入推动市场关注度上升',
+            'excerpt'          => '',
+            'content'          => '<p>正文</p>',
+        ]);
+
+        $r = $this->get('/__seo/article/' . $a->slug);
+        $r->assertOk()->assertSee('比特币现货ETF：资金流入推动市场关注度上升');
+    });
+
     it('returns 404 + noindex for unpublished or missing article', function () {
         Cache::flush();
         $draft = seoArticle(['status' => 'draft', 'published_at' => null]);

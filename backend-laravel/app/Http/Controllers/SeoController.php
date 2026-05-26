@@ -221,12 +221,23 @@ class SeoController extends Controller
             : $article['title'] . '｜玄猫Web3';
 
         // description：第一个非空者胜 —— meta_description → excerpt → 正文摘要。
+        // 正文兜底保证唯一性（Atlas #77 gate 1）：每篇 description 取本文字段，无全局模板，
+        // 2000 篇不会塌成同一句稀薄模板。
         $description = $this->firstNonEmpty([
             $article['meta_description'],
             $article['excerpt'],
             $article['content_text'],
+            $article['original_keyword'],   // 三者全空时的最后兜底，绝不吐空 description
         ]);
-        $description = Str::limit(trim(preg_replace('/\s+/u', ' ', $description)), 155);
+        $description = trim(preg_replace('/\s+/u', ' ', $description));
+
+        // 含词保证（Atlas #77 gate 2）：description 必须带 original_keyword。
+        // 命中 meta_description/excerpt 分支时词可能丢，这里补；已含则不动，保持自然语义。
+        $kw = trim($article['original_keyword']);
+        if ($kw !== '' && mb_stripos($description, $kw) === false) {
+            $description = $kw . '：' . $description;
+        }
+        $description = Str::limit($description, 155);
 
         // OG 图：优先文章自带 featured_image，否则回退到模板卡（Iris 那张）。
         // 同一 pass 接掉 og:image / twitter:image，不留到「美化 later」（Iris #69）。
@@ -295,6 +306,7 @@ class SeoController extends Controller
                 'content'          => (string) ($a->content ?? ''),
                 'content_text'     => trim(strip_tags((string) ($a->content ?? ''))),
                 'meta_description' => (string) ($a->meta_description ?? ''),
+                'original_keyword' => (string) ($a->original_keyword ?? ''),
                 'keywords'         => $a->tagList(),
                 'featured_image'   => (string) ($a->featured_image ?? ''),
                 'author'           => $a->author?->name ?? '',
