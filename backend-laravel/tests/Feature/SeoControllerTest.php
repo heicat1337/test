@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Article;
+use App\Models\Author;
+use App\Models\Category;
 use App\Models\NavCategory;
 use App\Models\NavSite;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -34,12 +36,37 @@ function seoSite(int $catId, array $overrides = []): NavSite
     ], $overrides));
 }
 
+function seoArticleCategory(): Category
+{
+    return Category::create([
+        'name' => 'ArticleCat_' . uniqid(),
+        'slug' => 'article-cat-' . uniqid(),
+        'description' => '',
+        'sort_order' => 0,
+    ]);
+}
+
+function seoAuthor(): Author
+{
+    return Author::create([
+        'name' => 'Author_' . uniqid(),
+        'email' => 'author-' . uniqid() . '@example.test',
+        'bio' => '',
+        'avatar' => '',
+    ]);
+}
+
 function seoArticle(array $overrides = []): Article
 {
+    $category = seoArticleCategory();
+    $author = seoAuthor();
+
     return Article::create(array_merge([
         'title'        => 'Test_' . uniqid(),
         'slug'         => 'art-' . uniqid(),
         'content'      => '<p>正文段落内容</p>',
+        'category_id'  => $category->id,
+        'author_id'    => $author->id,
         'status'       => 'published',
         'published_at' => now(),
     ], $overrides));
@@ -120,6 +147,35 @@ describe('GET /__seo/project/{id}', function () {
     it('respects pure number id route constraint', function () {
         $r = $this->get('/__seo/project/abc');
         $r->assertStatus(404);
+    });
+});
+
+describe('GET /__seo/articles', function () {
+    it('renders latest published articles with self-referencing canonical', function () {
+        Cache::flush();
+        $a = seoArticle([
+            'slug' => 'latest-web3-news',
+            'title' => 'Web3 最新资讯',
+            'excerpt' => '这是一篇已发布文章摘要',
+        ]);
+        seoArticle([
+            'slug' => 'draft-list-hidden',
+            'title' => '列表不应出现的草稿',
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+
+        $r = $this->get('/__seo/articles');
+        $r->assertOk()
+            ->assertSee('Web3 文章')
+            ->assertSee('Web3 最新资讯')
+            ->assertSee('这是一篇已发布文章摘要')
+            ->assertSee('/articles/' . $a->slug, false)
+            ->assertSee('rel="canonical" href="' . config('app.url') . '/articles"', false)
+            ->assertSee('CollectionPage', false)
+            ->assertDontSee('列表不应出现的草稿');
+
+        expect($r->headers->get('X-Robots-Tag'))->toBe('index,follow');
     });
 });
 

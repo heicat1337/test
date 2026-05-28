@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
  *   GET /__seo/home              首页（所有分类 + 项目列表）
  *   GET /__seo/category/{slug}   分类页（单个分类下的所有项目）
  *   GET /__seo/project/{id}      项目详情页（单个 NavSite + JSON-LD）
+ *   GET /__seo/articles          文章列表页（最新发布文章 + 自指 canonical）
  *   GET /__seo/article/{slug}    文章详情页（单篇 Article + 自指 canonical）
  *
  * nginx 通过 UA 检测命中爬虫后内部 rewrite 到 /__seo/*，转发到这里。
@@ -29,7 +30,7 @@ class SeoController extends Controller
 
     public function home(Request $request): Response
     {
-        $baseUrl = rtrim(env('APP_URL', 'https://xuaweb3.com'), '/');
+        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
         $cats = $this->loadCategories();
 
         $totalSites = array_sum(array_map(fn ($c) => count($c['sites']), $cats));
@@ -75,7 +76,7 @@ class SeoController extends Controller
 
     public function category(Request $request, string $slug): Response
     {
-        $baseUrl = rtrim(env('APP_URL', 'https://xuaweb3.com'), '/');
+        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
         $cats = $this->loadCategories();
 
         $cat = collect($cats)->firstWhere('slug', $slug);
@@ -133,7 +134,7 @@ class SeoController extends Controller
 
     public function project(Request $request, int $id): Response
     {
-        $baseUrl = rtrim(env('APP_URL', 'https://xuaweb3.com'), '/');
+        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
         $site = $this->loadSite($id);
         if (!$site) {
             return response()->view('seo.notfound', [
@@ -193,6 +194,55 @@ class SeoController extends Controller
           ->header('X-Robots-Tag', 'index,follow');
     }
 
+    public function articleIndex(Request $request): Response
+    {
+        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $articles = $this->loadLatestArticles();
+        $canonical = $baseUrl . '/articles';
+
+        $title = 'Web3 文章｜玄猫Web3';
+        $description = '玄猫Web3 Web3 文章频道，持续更新区块链、DeFi、NFT、加密货币、交易所、钱包、L2、跨链桥等行业资讯、技术分析与深度研究。';
+
+        $jsonLd = [
+            [
+                '@context' => 'https://schema.org',
+                '@type' => 'BreadcrumbList',
+                'itemListElement' => [
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => '首页', 'item' => $baseUrl . '/'],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => '文章', 'item' => $canonical],
+                ],
+            ],
+            [
+                '@context' => 'https://schema.org',
+                '@type' => 'CollectionPage',
+                'name' => '玄猫Web3 文章',
+                'url' => $canonical,
+                'description' => $description,
+                'mainEntity' => [
+                    '@type' => 'ItemList',
+                    'numberOfItems' => count($articles),
+                    'itemListElement' => array_map(fn ($i, $article) => [
+                        '@type' => 'ListItem',
+                        'position' => $i + 1,
+                        'url' => $baseUrl . '/articles/' . $article['slug'],
+                        'name' => $article['title'],
+                        'description' => $article['description'],
+                    ], array_keys($articles), $articles),
+                ],
+            ],
+        ];
+
+        return response()->view('seo.articles', [
+            'baseUrl'     => $baseUrl,
+            'title'       => $title,
+            'description' => $description,
+            'canonical'   => $canonical,
+            'jsonLd'      => $jsonLd,
+            'articles'    => $articles,
+        ])->header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+          ->header('X-Robots-Tag', 'index,follow');
+    }
+
     /**
      * 文章详情页 SSR。这是 P0 的核心缺口：sitemap 提交了全部已发布 /articles/{slug}，
      * 但此前没有任何爬虫路由，爬虫拿到的是 index.html 空壳 + 首页 canonical，
@@ -200,7 +250,7 @@ class SeoController extends Controller
      */
     public function article(Request $request, string $slug): Response
     {
-        $baseUrl = rtrim(env('APP_URL', 'https://xuaweb3.com'), '/');
+        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
         $article = $this->loadArticle($slug);
 
         // 未发布 / 不存在 → 404 + noindex，绝不吐首页骨架冒充文章。
@@ -314,6 +364,37 @@ class SeoController extends Controller
                 'updated_at'       => optional($a->updated_at)->toIso8601String() ?? '',
                 'published_human'  => $a->published_at ? Carbon::parse($a->published_at)->translatedFormat('Y年n月j日') : '',
             ];
+        });
+    }
+
+    private function loadLatestArticles(): array
+    {
+        return Cache::remember('seo.articles.latest', self::CACHE_TTL, function (): array {
+            return Article::with(['author', 'category'])
+                ->published()
+                ->orderByDesc('published_at')
+                ->orderByDesc('updated_at')
+                ->limit(30)
+                ->get()
+                ->map(function (Article $a): array {
+                    $description = $this->firstNonEmpty([
+                        (string) ($a->meta_description ?? ''),
+                        (string) ($a->excerpt ?? ''),
+                        trim(strip_tags((string) ($a->content ?? ''))),
+                        (string) ($a->original_keyword ?? ''),
+                    ]);
+
+                    return [
+                        'slug'            => (string) $a->slug,
+                        'title'           => (string) $a->title,
+                        'description'     => Str::limit(trim(preg_replace('/\s+/u', ' ', $description)), 120),
+                        'category'        => $a->category?->name ?? '',
+                        'author'          => $a->author?->name ?? '',
+                        'published_at'    => optional($a->published_at)->toIso8601String() ?? '',
+                        'published_human' => $a->published_at ? Carbon::parse($a->published_at)->translatedFormat('Y年n月j日') : '',
+                    ];
+                })
+                ->all();
         });
     }
 

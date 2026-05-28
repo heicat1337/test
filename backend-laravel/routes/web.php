@@ -22,5 +22,6 @@ Route::prefix('__seo')->name('seo.')->group(function () {
     Route::get('home',              [SeoController::class, 'home'])->name('home');
     Route::get('category/{slug}',   [SeoController::class, 'category'])->name('category');
     Route::get('project/{id}',      [SeoController::class, 'project'])->name('project')->where('id', '\d+');
+    Route::get('articles',          [SeoController::class, 'articleIndex'])->name('articles');
     Route::get('article/{slug}',    [SeoController::class, 'article'])->name('article');
 });
