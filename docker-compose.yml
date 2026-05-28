@@ -66,6 +66,7 @@ services:
     command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
     environment:
       APP_ENV: local
+      APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
       AUTO_SEED: "${AUTO_SEED:-true}"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -113,6 +114,7 @@ services:
         done
     environment:
       APP_ENV: local
+      APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -139,6 +141,7 @@ services:
     command: ["php", "artisan", "geoflow:worker"]
     environment:
       APP_ENV: local
+      APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
       RUN_MIGRATIONS: "false"
       AUTO_SEED: "false"
       DB_CONNECTION: pgsql
