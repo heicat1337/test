@@ -124,6 +124,10 @@ function generate_page_keywords($base_keywords = '', $additional_keywords = '') 
  * 获取站点基础URL
  */
 function geo_site_base_url() {
+    if (function_exists('geo_public_base_url')) {
+        return geo_public_base_url();
+    }
+
     if (defined('SITE_URL') && SITE_URL) {
         return rtrim(SITE_URL, '/');
     }
@@ -563,27 +567,24 @@ function generate_breadcrumb_structured_data($breadcrumbs) {
  * 获取当前页面的规范URL
  */
 function get_canonical_url() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $uri = $_SERVER['REQUEST_URI'];
-    
-    // 移除查询参数中的分页等参数，保留重要参数
+    $uri = $_SERVER['REQUEST_URI'] ?? '/';
     $parsed_url = parse_url($uri);
-    $path = $parsed_url['path'];
-    
+    $path = $parsed_url['path'] ?? '/';
+
     if (isset($parsed_url['query'])) {
         parse_str($parsed_url['query'], $query_params);
-        
-        // 保留重要的查询参数
-        $important_params = ['category', 'search'];
+        $important_params = ['category', 'search', 'q'];
         $filtered_params = array_intersect_key($query_params, array_flip($important_params));
-        
         if (!empty($filtered_params)) {
             $path .= '?' . http_build_query($filtered_params);
         }
     }
-    
-    return $protocol . '://' . $host . $path;
+
+    if (function_exists('geo_public_url')) {
+        return geo_public_url($path);
+    }
+
+    return rtrim(geo_site_base_url(), '/') . $path;
 }
 
 /**

@@ -1,9 +1,9 @@
 <?php
 /**
- * 爬虫专属服务端渲染：把 / 和 /c/:slug 渲染成完整 HTML
+ * 按路由输出 SEO HTML。
  *
- * nginx 通过 UA 检测命中爬虫后内部 rewrite 到 /seo/*，再 proxy 到本文件。
- * 真实用户走 SPA，互不影响。
+ * - 爬虫：nginx 不带 shell=1，输出可读正文（SSR）
+ * - 用户 / Lighthouse / curl：shell=1 时把独立 title/description/canonical 注入 SPA index.html
  */
 
 define('FEISHU_TREASURE', true);
@@ -11,19 +11,154 @@ define('FEISHU_TREASURE', true);
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database_admin.php';
 require_once __DIR__ . '/includes/nav_cache.php';
+require_once __DIR__ . '/includes/seo_functions.php';
 
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: public, max-age=300, stale-while-revalidate=600');
 header('X-Robots-Tag: index,follow');
 
-$baseUrl = rtrim(env_value('SITE_URL', 'https://xuaweb3.com'), '/');
+$baseUrl = geo_public_base_url();
 $route = $_GET['route'] ?? 'home';
 $slug = trim((string) ($_GET['slug'] ?? ''));
 $id = (int) ($_GET['id'] ?? 0);
+$wantShell = (string) ($_GET['shell'] ?? '') === '1';
 
 function h(string $s): string
 {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+}
+
+function seo_want_shell(): bool
+{
+    global $wantShell;
+    return $wantShell;
+}
+
+function load_spa_shell(): ?string
+{
+    $url = env_value('SPA_SHELL_URL', 'http://nginx/index.html');
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 2,
+            'ignore_errors' => true,
+            'header' => "Accept: text/html\r\n",
+        ],
+    ]);
+    $html = @file_get_contents($url, false, $ctx);
+    if (!is_string($html) || stripos($html, '<html') === false) {
+        return null;
+    }
+    return $html;
+}
+
+function seo_inject_spa_head(
+    string $html,
+    string $title,
+    string $description,
+    string $canonical,
+    array $jsonLd,
+    string $ogType = 'website',
+    string $ogImage = ''
+): string {
+    $titleEsc = h($title);
+    $descEsc = h($description);
+    $canonEsc = h($canonical);
+    $ogTypeEsc = h($ogType);
+    $ogImageEsc = $ogImage !== '' ? h($ogImage) : '';
+
+    $html = preg_replace('/<title>.*?<\/title>/is', '<title>' . $titleEsc . '</title>', $html, 1);
+
+    if (preg_match('/<meta\s+name=["\']description["\'][^>]*>/i', $html)) {
+        $html = preg_replace(
+            '/<meta\s+name=["\']description["\'][^>]*>/i',
+            '<meta name="description" content="' . $descEsc . '" />',
+            $html,
+            1
+        );
+    } else {
+        $html = preg_replace(
+            '/<head[^>]*>/i',
+            '$0' . "\n    <meta name=\"description\" content=\"{$descEsc}\" />",
+            $html,
+            1
+        );
+    }
+
+    if (preg_match('/<link\s+rel=["\']canonical["\'][^>]*>/i', $html)) {
+        $html = preg_replace(
+            '/<link\s+rel=["\']canonical["\'][^>]*>/i',
+            '<link rel="canonical" href="' . $canonEsc . '" />',
+            $html,
+            1
+        );
+    } else {
+        $html = preg_replace(
+            '/<\/title>/i',
+            '$0' . "\n    <link rel=\"canonical\" href=\"{$canonEsc}\" />",
+            $html,
+            1
+        );
+    }
+
+    $html = preg_replace('/<meta\s+property=["\']og:(?:title|description|url|type|image)["\'][^>]*>\s*/i', '', $html);
+    $html = preg_replace('/<meta\s+name=["\']twitter:(?:card|title|description|image)["\'][^>]*>\s*/i', '', $html);
+    $html = preg_replace('/<script type=["\']application\/ld\+json["\'][^>]*>.*?<\/script>\s*/is', '', $html);
+
+    $inject = [
+        '<meta property="og:title" content="' . $titleEsc . '" />',
+        '<meta property="og:description" content="' . $descEsc . '" />',
+        '<meta property="og:type" content="' . $ogTypeEsc . '" />',
+        '<meta property="og:url" content="' . $canonEsc . '" />',
+        '<meta name="twitter:card" content="summary_large_image" />',
+        '<meta name="twitter:title" content="' . $titleEsc . '" />',
+        '<meta name="twitter:description" content="' . $descEsc . '" />',
+    ];
+    if ($ogImageEsc !== '') {
+        $inject[] = '<meta property="og:image" content="' . $ogImageEsc . '" />';
+        $inject[] = '<meta name="twitter:image" content="' . $ogImageEsc . '" />';
+    }
+    foreach ($jsonLd as $block) {
+        $inject[] = '<script type="application/ld+json">'
+            . json_encode($block, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            . '</script>';
+    }
+
+    $headExtra = implode("\n    ", $inject);
+    $html = preg_replace('/<\/head>/i', "    {$headExtra}\n  </head>", $html, 1);
+    return $html;
+}
+
+function seo_try_output_shell(
+    string $title,
+    string $description,
+    string $canonical,
+    array $jsonLd,
+    string $ogType = 'website',
+    string $ogImage = ''
+): bool {
+    if (!seo_want_shell()) {
+        return false;
+    }
+    $shell = load_spa_shell();
+    if ($shell === null) {
+        return false;
+    }
+    header('Cache-Control: no-cache, must-revalidate');
+    echo seo_inject_spa_head($shell, $title, $description, $canonical, $jsonLd, $ogType, $ogImage);
+    return true;
+}
+
+function seo_plain_text(string $text, int $max = 160): string
+{
+    if (function_exists('clean_markdown_for_summary')) {
+        return clean_markdown_for_summary($text, $max);
+    }
+    $text = trim(preg_replace('/\s+/u', ' ', strip_tags($text)));
+    if (mb_strlen($text) > $max) {
+        return mb_substr($text, 0, $max - 3) . '...';
+    }
+    return $text;
 }
 
 function seo_serialize_site_row(array $row): array
@@ -147,7 +282,7 @@ function load_site_detail(PDO $db, int $id): ?array
     return $site;
 }
 
-function emit_head(string $title, string $description, string $canonical, array $jsonLd): void
+function emit_head(string $title, string $description, string $canonical, array $jsonLd, string $ogType = 'website'): void
 {
     $jsonLdBlocks = '';
     foreach ($jsonLd as $block) {
@@ -164,9 +299,11 @@ function emit_head(string $title, string $description, string $canonical, array 
     echo '<link rel="canonical" href="' . h($canonical) . '">' . "\n";
     echo '<meta property="og:title" content="' . h($title) . '">' . "\n";
     echo '<meta property="og:description" content="' . h($description) . '">' . "\n";
-    echo '<meta property="og:type" content="website">' . "\n";
+    echo '<meta property="og:type" content="' . h($ogType) . '">' . "\n";
     echo '<meta property="og:url" content="' . h($canonical) . '">' . "\n";
     echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
+    echo '<meta name="twitter:title" content="' . h($title) . '">' . "\n";
+    echo '<meta name="twitter:description" content="' . h($description) . '">' . "\n";
     echo $jsonLdBlocks;
     echo '<style>
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0a0e1a;color:#e2e8f0;margin:0;padding:0;line-height:1.6}
@@ -284,6 +421,10 @@ if ($route === 'home') {
         ],
     ];
 
+    if (seo_try_output_shell($title, $description, $canonical, $jsonLd)) {
+        exit;
+    }
+
     emit_head($title, $description, $canonical, $jsonLd);
 
     echo '<h2>Web3 项目导航 · ' . count($cats) . ' 个分类 · ' . $totalSites . ' 个精选项目</h2>' . "\n";
@@ -307,7 +448,13 @@ if ($route === 'category') {
     }
     if (!$cat) {
         http_response_code(404);
-        emit_head('未找到分类 - 玄猫Web3', '该分类不存在', $baseUrl, []);
+        $missingTitle = '未找到分类 - 玄猫Web3';
+        $missingDesc = '该分类不存在';
+        $missingCanon = $baseUrl . '/';
+        if (seo_try_output_shell($missingTitle, $missingDesc, $missingCanon, [])) {
+            exit;
+        }
+        emit_head($missingTitle, $missingDesc, $missingCanon, []);
         echo '<h2>未找到分类「' . h($slug) . '」</h2>' . "\n";
         echo '<p><a href="/">← 返回首页</a></p>' . "\n";
         emit_foot($baseUrl);
@@ -345,6 +492,10 @@ if ($route === 'category') {
             ];
         }, array_keys($cat['sites']), $cat['sites']),
     ];
+
+    if (seo_try_output_shell($title, $description, $canonical, [$breadcrumb, $itemList])) {
+        exit;
+    }
 
     emit_head($title, $description, $canonical, [$breadcrumb, $itemList]);
 
@@ -385,7 +536,13 @@ if ($route === 'project') {
     $site = $id > 0 ? load_site_detail($db, $id) : null;
     if (!$site) {
         http_response_code(404);
-        emit_head('未找到项目 - 玄猫Web3', '该项目不存在或已下架', $baseUrl, []);
+        $missingTitle = '未找到项目 - 玄猫Web3';
+        $missingDesc = '该项目不存在或已下架';
+        $missingCanon = $baseUrl . '/';
+        if (seo_try_output_shell($missingTitle, $missingDesc, $missingCanon, [])) {
+            exit;
+        }
+        emit_head($missingTitle, $missingDesc, $missingCanon, []);
         echo '<h2>未找到项目</h2>' . "\n";
         echo '<p><a href="/">← 返回首页</a></p>' . "\n";
         emit_foot($baseUrl);
@@ -424,6 +581,10 @@ if ($route === 'project') {
             'bestRating' => 5,
             'ratingCount' => 1,
         ];
+    }
+
+    if (seo_try_output_shell($title, $description, $canonical, [$breadcrumb, $product])) {
+        exit;
     }
 
     emit_head($title, $description, $canonical, [$breadcrumb, $product]);
@@ -474,5 +635,162 @@ if ($route === 'project') {
     exit;
 }
 
+if ($route === 'articles') {
+    $listTitle = 'Web3 文章 - 玄猫Web3';
+    $listDesc = '探索最新的 Web3 行业资讯、技术分析与深度研究。玄猫Web3 每日更新区块链、DeFi、NFT 与加密市场动态。';
+    $canonical = $baseUrl . '/articles';
+    $items = [];
+    try {
+        $stmt = $db->query("
+            SELECT slug, title, excerpt, meta_description, published_at, updated_at
+            FROM articles
+            WHERE status = 'published' AND deleted_at IS NULL
+            ORDER BY published_at DESC
+            LIMIT 40
+        ");
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $items = [];
+    }
+
+    $itemList = [
+        '@context' => 'https://schema.org',
+        '@type' => 'CollectionPage',
+        'name' => $listTitle,
+        'url' => $canonical,
+        'description' => $listDesc,
+        'mainEntity' => [
+            '@type' => 'ItemList',
+            'numberOfItems' => count($items),
+            'itemListElement' => array_map(function ($i, $row) use ($baseUrl) {
+                return [
+                    '@type' => 'ListItem',
+                    'position' => $i + 1,
+                    'url' => $baseUrl . '/articles/' . $row['slug'],
+                    'name' => $row['title'],
+                ];
+            }, array_keys($items), $items),
+        ],
+    ];
+
+    if (seo_try_output_shell($listTitle, $listDesc, $canonical, [$itemList])) {
+        exit;
+    }
+
+    emit_head($listTitle, $listDesc, $canonical, [$itemList]);
+    echo '<h2>Web3 文章</h2>' . "\n";
+    echo '<p style="color:#94a3b8;margin-bottom:24px">' . h($listDesc) . '</p>' . "\n";
+    echo '<ul class="sites">' . "\n";
+    foreach ($items as $row) {
+        $href = $baseUrl . '/articles/' . $row['slug'];
+        $summary = seo_plain_text((string) (($row['meta_description'] ?: $row['excerpt']) ?: $row['title']), 140);
+        echo '<li>' . "\n";
+        echo '<a href="' . h($href) . '">' . h($row['title']) . '</a>' . "\n";
+        if ($summary !== '') {
+            echo '<p>' . h($summary) . '</p>' . "\n";
+        }
+        echo '</li>' . "\n";
+    }
+    echo '</ul>' . "\n";
+    emit_foot($baseUrl);
+    exit;
+}
+
+if ($route === 'article') {
+    $article = null;
+    if ($slug !== '') {
+        try {
+            $stmt = $db->prepare("
+                SELECT a.*, au.name AS author_name, c.name AS category_name
+                FROM articles a
+                LEFT JOIN authors au ON a.author_id = au.id
+                LEFT JOIN categories c ON a.category_id = c.id
+                WHERE a.slug = ? AND a.status = 'published' AND a.deleted_at IS NULL
+                LIMIT 1
+            ");
+            $stmt->execute([$slug]);
+            $article = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Throwable $e) {
+            $article = null;
+        }
+    }
+
+    if (!$article) {
+        http_response_code(404);
+        $missingTitle = '文章不存在 - 玄猫Web3';
+        $missingDesc = '该文章不存在或尚未发布';
+        $missingCanon = $baseUrl . '/articles';
+        if (seo_try_output_shell($missingTitle, $missingDesc, $missingCanon, [])) {
+            exit;
+        }
+        emit_head($missingTitle, $missingDesc, $missingCanon, []);
+        echo '<h2>文章不存在</h2>' . "\n";
+        echo '<p><a href="/articles">← 返回文章列表</a></p>' . "\n";
+        emit_foot($baseUrl);
+        exit;
+    }
+
+    $canonical = $baseUrl . '/articles/' . $article['slug'];
+    $description = seo_plain_text((string) (($article['meta_description'] ?: $article['excerpt']) ?: $article['content']), 160);
+    $title = $article['title'] . ' - 玄猫Web3';
+    $ogImage = trim((string) ($article['featured_image'] ?? ''));
+    $authorName = trim((string) ($article['author_name'] ?? '')) ?: '玄猫Web3';
+    $published = $article['published_at'] ?: $article['updated_at'];
+    $modified = $article['updated_at'] ?: $published;
+
+    $jsonLd = [
+        [
+            '@context' => 'https://schema.org',
+            '@type' => 'NewsArticle',
+            'headline' => $article['title'],
+            'description' => $description,
+            'datePublished' => $published ? date('c', strtotime($published)) : date('c'),
+            'dateModified' => $modified ? date('c', strtotime($modified)) : date('c'),
+            'author' => ['@type' => 'Person', 'name' => $authorName],
+            'publisher' => [
+                '@type' => 'Organization',
+                'name' => '玄猫Web3',
+                'url' => $baseUrl . '/',
+            ],
+            'mainEntityOfPage' => $canonical,
+        ],
+        [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => '首页', 'item' => $baseUrl . '/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => '文章', 'item' => $baseUrl . '/articles'],
+                ['@type' => 'ListItem', 'position' => 3, 'name' => $article['title'], 'item' => $canonical],
+            ],
+        ],
+    ];
+    if ($ogImage !== '') {
+        $jsonLd[0]['image'] = $ogImage;
+    }
+
+    if (seo_try_output_shell($title, $description, $canonical, $jsonLd, 'article', $ogImage)) {
+        exit;
+    }
+
+    emit_head($title, $description, $canonical, $jsonLd, 'article');
+    echo '<nav class="crumb"><a href="/">首页</a> › <a href="/articles">文章</a> › ' . h($article['title']) . '</nav>' . "\n";
+    echo '<h2>' . h($article['title']) . '</h2>' . "\n";
+    echo '<p style="color:#94a3b8;margin-bottom:8px">' . h($authorName);
+    if ($published) {
+        echo ' · ' . h(date('Y-m-d', strtotime($published)));
+    }
+    echo '</p>' . "\n";
+    if ($description !== '') {
+        echo '<p style="color:#cbd5e1;line-height:1.7">' . h($description) . '</p>' . "\n";
+    }
+    $bodyPreview = seo_plain_text((string) $article['content'], 1800);
+    if ($bodyPreview !== '' && $bodyPreview !== $description) {
+        echo '<p style="color:#cbd5e1;line-height:1.7">' . h($bodyPreview) . '</p>' . "\n";
+    }
+    emit_foot($baseUrl);
+    exit;
+}
+
 http_response_code(404);
 echo '<h1>404 Not Found</h1>';
+

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Article;
 use App\Models\NavCategory;
 use App\Models\NavSite;
+use App\Support\PublicUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -30,7 +31,7 @@ class SeoController extends Controller
 
     public function home(Request $request): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $baseUrl = PublicUrl::base();
         $cats = $this->loadCategories();
 
         $totalSites = array_sum(array_map(fn ($c) => count($c['sites']), $cats));
@@ -76,7 +77,7 @@ class SeoController extends Controller
 
     public function category(Request $request, string $slug): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $baseUrl = PublicUrl::base();
         $cats = $this->loadCategories();
 
         $cat = collect($cats)->firstWhere('slug', $slug);
@@ -134,7 +135,7 @@ class SeoController extends Controller
 
     public function project(Request $request, int $id): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $baseUrl = PublicUrl::base();
         $site = $this->loadSite($id);
         if (!$site) {
             return response()->view('seo.notfound', [
@@ -196,7 +197,7 @@ class SeoController extends Controller
 
     public function articleIndex(Request $request): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $baseUrl = PublicUrl::base();
         $articles = $this->loadLatestArticles();
         $canonical = $baseUrl . '/articles';
 
@@ -250,7 +251,7 @@ class SeoController extends Controller
      */
     public function article(Request $request, string $slug): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
+        $baseUrl = PublicUrl::base();
         $article = $this->loadArticle($slug);
 
         // 未发布 / 不存在 → 404 + noindex，绝不吐首页骨架冒充文章。

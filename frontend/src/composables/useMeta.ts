@@ -65,8 +65,13 @@ export function useMeta(getter: () => MetaConfig) {
     setOrCreateMeta('property', 'og:title', cfg.ogTitle || title)
     setOrCreateMeta('property', 'og:description', cfg.ogDescription || description)
     setOrCreateMeta('property', 'og:type', cfg.ogType || 'website')
+    if (cfg.canonical) {
+      setOrCreateMeta('property', 'og:url', cfg.canonical)
+    }
     if (cfg.ogImage) setOrCreateMeta('property', 'og:image', cfg.ogImage)
     setOrCreateMeta('name', 'twitter:card', 'summary_large_image')
+    setOrCreateMeta('name', 'twitter:title', cfg.ogTitle || title)
+    setOrCreateMeta('name', 'twitter:description', cfg.ogDescription || description)
 
     if (cfg.jsonLd) {
       const blocks = Array.isArray(cfg.jsonLd) ? cfg.jsonLd : [cfg.jsonLd]

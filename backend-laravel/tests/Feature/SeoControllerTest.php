@@ -5,6 +5,7 @@ use App\Models\Author;
 use App\Models\Category;
 use App\Models\NavCategory;
 use App\Models\NavSite;
+use App\Support\PublicUrl;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 
@@ -171,7 +172,7 @@ describe('GET /__seo/articles', function () {
             ->assertSee('Web3 最新资讯')
             ->assertSee('这是一篇已发布文章摘要')
             ->assertSee('/articles/' . $a->slug, false)
-            ->assertSee('rel="canonical" href="' . config('app.url') . '/articles"', false)
+            ->assertSee('rel="canonical" href="' . PublicUrl::of('/articles') . '"', false)
             ->assertSee('CollectionPage', false)
             ->assertDontSee('列表不应出现的草稿');
 
@@ -198,7 +199,7 @@ describe('GET /__seo/article/{slug}', function () {
             ->assertSee('BreadcrumbList', false);
 
         // 核心验收：canonical 必须自指文章，绝不是首页（Nova #73）。
-        $r->assertSee('rel="canonical" href="' . config('app.url') . '/articles/my-web3-guide"', false);
+        $r->assertSee('rel="canonical" href="' . PublicUrl::of('/articles/my-web3-guide') . '"', false);
         expect($r->headers->get('X-Robots-Tag'))->toBe('index,follow');
     });
 

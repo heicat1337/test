@@ -27,9 +27,52 @@ require_once __DIR__ . '/i18n.php';
 define('SITE_NAME', env_value('SITE_NAME', '玄猫Web3'));
 define('SITE_FULL_NAME', env_value('SITE_FULL_NAME', '玄猫Web3 - Web3行业资讯与导航'));
 define('SITE_URL', env_value('SITE_URL', 'https://xuaweb3.com'));
+define('PUBLIC_SITE_URL', env_value('PUBLIC_SITE_URL', 'https://xuaweb3.com'));
 define('SITE_DESCRIPTION', env_value('SITE_DESCRIPTION', '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币最新动态、深度分析和项目评测，助你掌握Web3前沿趋势'));
 define('SITE_KEYWORDS', env_value('SITE_KEYWORDS', 'Web3,区块链,加密货币,DeFi,NFT,比特币,以太坊,链上数据,Web3导航,币圈资讯,加密市场,数字货币'));
 define('ADMIN_BASE_PATH', '/' . trim(env_value('ADMIN_BASE_PATH', 'heicat'), '/'));
+
+/**
+ * 对外索引用的绝对站点 URL（sitemap / canonical / OG）。
+ * localhost 与 www 一律归一到 https://xuaweb3.com，避免再把内网地址写进索引。
+ */
+function geo_is_local_host($host) {
+    $host = strtolower((string) $host);
+    if ($host === '' || $host === 'localhost' || $host === '127.0.0.1' || $host === '0.0.0.0' || $host === '::1') {
+        return true;
+    }
+    return substr($host, -10) === '.localhost';
+}
+
+function geo_public_base_url() {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $raw = env_value('PUBLIC_SITE_URL', '');
+    if ($raw === '' || $raw === false) {
+        $raw = defined('PUBLIC_SITE_URL') ? PUBLIC_SITE_URL : '';
+    }
+    if ($raw === '' || $raw === false) {
+        $raw = defined('SITE_URL') ? SITE_URL : 'https://xuaweb3.com';
+    }
+    $host = strtolower((string) (parse_url(rtrim(trim((string) $raw), '/'), PHP_URL_HOST) ?: ''));
+    if (geo_is_local_host($host) || $host === 'www.xuaweb3.com' || $host === 'xuaweb3.com') {
+        $cached = 'https://xuaweb3.com';
+        return $cached;
+    }
+    $cached = 'https://' . $host;
+    return $cached;
+}
+
+function geo_public_url($path = '/') {
+    $base = geo_public_base_url();
+    $path = trim((string) $path);
+    if ($path === '' || $path === '/') {
+        return $base . '/';
+    }
+    return $base . '/' . ltrim($path, '/');
+}
 
 // SQLite 源库路径，仅用于迁移和兼容维护脚本
 define('DB_PATH', db_get_sqlite_path());

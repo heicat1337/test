@@ -44,6 +44,7 @@ import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import type { Article } from '../types'
 import { fetchArticleBySlug } from '../api/articles'
+import { useMeta } from '../composables/useMeta'
 
 const route = useRoute()
 const article = ref<Article | null>(null)
@@ -52,6 +53,40 @@ const loading = ref(true)
 const renderedContent = computed(() => {
   if (!article.value?.content) return ''
   return marked.parse(article.value.content, { async: false }) as string
+})
+
+const slug = computed(() => String(route.params.slug || ''))
+
+useMeta(() => {
+  if (!article.value) {
+    return {
+      title: loading.value ? '文章加载中 - 玄猫Web3' : '文章不存在 - 玄猫Web3',
+      description: '玄猫Web3 Web3 行业资讯与深度分析',
+      canonical: `https://xuaweb3.com/articles/${slug.value}`,
+      ogType: 'article',
+    }
+  }
+  const a = article.value
+  const description = (a.excerpt || a.content || '').replace(/\s+/g, ' ').trim().slice(0, 160)
+  return {
+    title: `${a.title} - 玄猫Web3`,
+    description,
+    canonical: `https://xuaweb3.com/articles/${a.slug}`,
+    ogTitle: a.title,
+    ogDescription: description,
+    ogType: 'article',
+    jsonLd: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        headline: a.title,
+        description,
+        datePublished: a.published_at,
+        author: { '@type': 'Person', name: a.author_name || '玄猫Web3' },
+        mainEntityOfPage: `https://xuaweb3.com/articles/${a.slug}`,
+      },
+    ],
+  }
 })
 
 function formatDate(dateStr: string): string {

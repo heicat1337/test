@@ -5,6 +5,7 @@ use App\Models\Author;
 use App\Models\Category;
 use App\Models\NavCategory;
 use App\Models\NavSite;
+use App\Support\PublicUrl;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 uses(DatabaseTransactions::class);
@@ -82,5 +83,16 @@ describe('GET /sitemap.xml', function () {
             ->assertSee('<loc>https://xuaweb3.test/c/' . $navCat->slug . '</loc>', false)
             ->assertSee('<loc>https://xuaweb3.test/articles/' . $published->slug . '</loc>', false)
             ->assertDontSee($draft->slug);
+    });
+
+    it('never emits localhost loc even if APP_URL is local', function () {
+        config(['app.url' => 'http://localhost']);
+
+        $r = $this->get('/sitemap.xml');
+
+        $r->assertOk();
+        $r->assertSee('<loc>https://xuaweb3.com/</loc>', false)
+            ->assertSee('<loc>https://xuaweb3.com/articles</loc>', false)
+            ->assertDontSee('localhost', false);
     });
 });

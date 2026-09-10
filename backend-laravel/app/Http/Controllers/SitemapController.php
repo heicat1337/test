@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Article;
 use App\Models\NavCategory;
+use App\Support\PublicUrl;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -12,10 +13,7 @@ class SitemapController extends Controller
 {
     public function __invoke(): Response
     {
-        $baseUrl = rtrim(config('app.url', 'https://xuaweb3.com'), '/');
-        if ($baseUrl === '') {
-            $baseUrl = 'https://xuaweb3.com';
-        }
+        $baseUrl = PublicUrl::base();
 
         $urls = [
             [

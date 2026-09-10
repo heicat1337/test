@@ -47,11 +47,19 @@ import { ref, onMounted } from 'vue'
 import type { Article } from '../types'
 import { fetchArticles } from '../api/articles'
 import ArticleCard from '../components/ArticleCard.vue'
+import { useMeta } from '../composables/useMeta'
 
 const articles = ref<Article[]>([])
 const loading = ref(true)
 const page = ref(1)
 const totalPages = ref(1)
+
+useMeta(() => ({
+  title: 'Web3 文章 - 玄猫Web3',
+  description: '探索最新的 Web3 行业资讯、技术分析与深度研究。玄猫Web3 每日更新区块链、DeFi、NFT 与加密市场动态。',
+  canonical: 'https://xuaweb3.com/articles',
+  ogType: 'website',
+}))
 
 async function loadArticles() {
   loading.value = true

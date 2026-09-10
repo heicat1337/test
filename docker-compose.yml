@@ -41,7 +41,9 @@ services:
       DB_USER: "${DB_USER:-geo_user}"
       DB_PASSWORD: "${DB_PASSWORD:-geo_password}"
       APP_PORT: "8080"
-      SITE_URL: "${SITE_URL:-http://localhost}"
+      SITE_URL: "${SITE_URL:-https://xuaweb3.com}"
+      PUBLIC_SITE_URL: "${PUBLIC_SITE_URL:-https://xuaweb3.com}"
+      SPA_SHELL_URL: "${SPA_SHELL_URL:-http://nginx/index.html}"
       APP_SECRET_KEY: "${APP_SECRET_KEY:-change-me-to-a-random-secret-key}"
       REQUIRE_STRONG_APP_SECRET: "${REQUIRE_STRONG_APP_SECRET:-false}"
       TZ: "${TZ:-Asia/Shanghai}"
@@ -67,6 +69,7 @@ services:
     environment:
       APP_ENV: local
       APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
+      APP_URL: "${APP_URL:-https://xuaweb3.com}"
       AUTO_SEED: "${AUTO_SEED:-true}"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -115,6 +118,7 @@ services:
     environment:
       APP_ENV: local
       APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
+      APP_URL: "${APP_URL:-https://xuaweb3.com}"
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -142,6 +146,7 @@ services:
     environment:
       APP_ENV: local
       APP_KEY: "${APP_KEY:?Set APP_KEY in the deployment environment before starting Laravel}"
+      APP_URL: "${APP_URL:-https://xuaweb3.com}"
       RUN_MIGRATIONS: "false"
       AUTO_SEED: "false"
       DB_CONNECTION: pgsql
