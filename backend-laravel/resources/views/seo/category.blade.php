@@ -12,7 +12,7 @@
 
     @if (count($allCats) > 1)
         <nav class="cat-cross">
-            <span style="color:#64748b;font-size:13px;margin-right:8px">其他分类：</span>
+            <span style="color:#94a3b8;font-size:13px;margin-right:8px">其他分类：</span>
             @foreach ($allCats as $other)
                 @if ($other['slug'] !== $cat['slug'])
                     <a href="/c/{{ $other['slug'] }}">{{ $other['icon'] }} {{ $other['name'] }}</a>

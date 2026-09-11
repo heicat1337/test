@@ -15,13 +15,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from '../components/AppSidebar.vue'
 import AppContent from '../components/AppContent.vue'
 import { useNavCategories } from '../composables/useNavCategories'
 import { useSearch } from '../composables/useSearch'
 import { useActiveCategory } from '../composables/useActiveCategory'
 import { useMeta } from '../composables/useMeta'
+import { useSearchState } from '../composables/useSearchState'
 
+const route = useRoute()
+const router = useRouter()
+const { query } = useSearchState()
 const { categories, loading, load } = useNavCategories()
 const { filtered, queryFiltered } = useSearch(categories)
 const { activeId, refresh: refreshObserver } = useActiveCategory()
@@ -35,6 +40,7 @@ useMeta(() => ({
   description: '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币、交易所、钱包、L2、跨链桥等领域的最新动态、深度分析和项目评测。',
   canonical: 'https://xuaweb3.com/',
   ogType: 'website',
+  ogImage: 'https://xuaweb3.com/og/default.svg',
   jsonLd: [
     {
       '@context': 'https://schema.org',
@@ -47,6 +53,13 @@ useMeta(() => ({
         target: 'https://xuaweb3.com/?q={search_term_string}',
         'query-input': 'required name=search_term_string',
       },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: '玄猫Web3',
+      url: 'https://xuaweb3.com/',
+      logo: 'https://xuaweb3.com/og/default.svg',
     },
     {
       '@context': 'https://schema.org',
@@ -66,6 +79,23 @@ useMeta(() => ({
 watch([filtered, loading], () => {
   nextTick(refreshObserver)
 }, { flush: 'post' })
+
+watch(
+  () => route.query.q,
+  (q) => {
+    const next = typeof q === 'string' ? q.trim() : ''
+    if (query.value !== next) query.value = next
+  },
+  { immediate: true },
+)
+
+watch(query, (q) => {
+  if (route.name !== 'home') return
+  const next = q.trim()
+  const current = typeof route.query.q === 'string' ? route.query.q : ''
+  if (next === current) return
+  router.replace({ path: '/', query: next ? { q: next } : {} })
+})
 
 onMounted(load)
 </script>

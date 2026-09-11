@@ -10,6 +10,10 @@ const router = createRouter({
     { path: '/articles', name: 'articles', component: () => import('../views/ArticlesPage.vue') },
     { path: '/articles/:slug', name: 'article-detail', component: () => import('../views/ArticleDetailPage.vue') },
     { path: '/article/:slug', redirect: to => ({ name: 'article-detail', params: { slug: to.params.slug } }) },
+    { path: '/about', name: 'about', component: () => import('../views/LegalPage.vue') },
+    { path: '/contact', name: 'contact', component: () => import('../views/LegalPage.vue') },
+    { path: '/privacy', name: 'privacy', component: () => import('../views/LegalPage.vue') },
+    { path: '/terms', name: 'terms', component: () => import('../views/LegalPage.vue') },
   ],
   scrollBehavior(_to, _from, savedPosition) {
     return savedPosition || { top: 0 }

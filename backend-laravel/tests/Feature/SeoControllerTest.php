@@ -90,6 +90,18 @@ describe('GET /__seo/home', function () {
         expect($r->headers->get('Cache-Control'))->toContain('max-age=300');
     });
 
+    it('filters sites by ?q=', function () {
+        Cache::flush();
+        $cat = seoCat();
+        seoSite($cat->id, ['name' => 'UniqueAlphaDex', 'description' => 'alpha only']);
+        seoSite($cat->id, ['name' => 'OtherWallet', 'description' => 'wallet']);
+
+        $r = $this->get('/__seo/home?q=UniqueAlphaDex');
+        $r->assertOk()
+            ->assertSee('UniqueAlphaDex')
+            ->assertDontSee('OtherWallet');
+    });
+
     it('shows site count in heading', function () {
         Cache::flush();
         $r = $this->get('/__seo/home');
@@ -248,5 +260,42 @@ describe('GET /__seo/article/{slug}', function () {
         expect($r->headers->get('X-Robots-Tag'))->toBe('noindex,follow');
 
         $this->get('/__seo/article/never-exists-' . uniqid())->assertStatus(404);
+    });
+
+    it('includes related articles and disclosure', function () {
+        Cache::flush();
+        $cat = seoArticleCategory();
+        $author = seoAuthor();
+        $a = seoArticle([
+            'category_id' => $cat->id,
+            'author_id' => $author->id,
+            'title' => 'MainRelated',
+        ]);
+        seoArticle([
+            'category_id' => $cat->id,
+            'author_id' => $author->id,
+            'title' => 'SiblingArticle',
+            'slug' => 'sibling-' . uniqid(),
+        ]);
+
+        $r = $this->get('/__seo/article/' . $a->slug);
+        $r->assertOk()
+            ->assertSee('推广披露')
+            ->assertSee('返回文章目录')
+            ->assertSee('SiblingArticle');
+    });
+});
+
+describe('GET /__seo/legal/{page}', function () {
+    it('renders about/privacy with body copy', function () {
+        $about = $this->get('/__seo/legal/about');
+        $about->assertOk()
+            ->assertSee('关于我们')
+            ->assertSee('不提供投资建议');
+
+        $privacy = $this->get('/__seo/legal/privacy');
+        $privacy->assertOk()
+            ->assertSee('隐私政策')
+            ->assertSee('localStorage');
     });
 });

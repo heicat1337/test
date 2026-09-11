@@ -1,2 +1,9 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /heicat/
+Disallow: /xuacat/
+Disallow: /api/
+
+# 不添加 Cloudflare Content-Signal 指令。若 CDN 注入未知字段，属托管层行为，站点 robots 仅保留标准指令。
+
+Sitemap: https://xuaweb3.com/sitemap.xml

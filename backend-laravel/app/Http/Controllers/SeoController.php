@@ -33,6 +33,23 @@ class SeoController extends Controller
     {
         $baseUrl = PublicUrl::base();
         $cats = $this->loadCategories();
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $cats = array_values(array_filter(array_map(function (array $c) use ($needle) {
+                $sites = array_values(array_filter($c['sites'], function ($s) use ($needle, $c) {
+                    $hay = mb_strtolower($c['name'].' '.$s['name'].' '.($s['description'] ?? ''));
+                    return mb_strpos($hay, $needle) !== false;
+                }));
+                if ($sites === [] && mb_strpos(mb_strtolower($c['name']), $needle) === false) {
+                    return null;
+                }
+                if ($sites !== []) {
+                    $c['sites'] = $sites;
+                }
+                return $c;
+            }, $cats)));
+        }
 
         $totalSites = array_sum(array_map(fn ($c) => count($c['sites']), $cats));
 
@@ -48,6 +65,13 @@ class SeoController extends Controller
                     'target'       => $baseUrl . '/?q={search_term_string}',
                     'query-input'  => 'required name=search_term_string',
                 ],
+            ],
+            [
+                '@context' => 'https://schema.org',
+                '@type'    => 'Organization',
+                'name'     => '玄猫Web3',
+                'url'      => $baseUrl . '/',
+                'logo'     => $baseUrl . '/og/default.svg',
             ],
             [
                 '@context' => 'https://schema.org',
@@ -68,9 +92,11 @@ class SeoController extends Controller
             'title'      => '玄猫Web3 - Web3 行业资讯与导航平台',
             'description' => '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币、交易所、钱包、L2、跨链桥等领域的最新动态、深度分析和项目评测。',
             'canonical'  => $baseUrl . '/',
+            'ogImage'    => PublicUrl::of('/og/default.svg'),
             'jsonLd'     => $jsonLd,
             'cats'       => $cats,
             'totalSites' => $totalSites,
+            'q'          => trim((string) $request->query('q', '')),
         ])->header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
           ->header('X-Robots-Tag', 'index,follow');
     }
@@ -294,7 +320,7 @@ class SeoController extends Controller
         // 同一 pass 接掉 og:image / twitter:image，不留到「美化 later」（Iris #69）。
         // 兜底卡 = Iris #75 定的静态品牌卡（1200×630，部署到 nginx root /og/default.png）。
         $ogImage = $this->absoluteImage($article['featured_image'], $baseUrl)
-            ?: rtrim(env('SEO_DEFAULT_OG_IMAGE', $baseUrl . '/og/default.png'), '/');
+            ?: PublicUrl::of('/og/default.svg');
 
         $crumbs = [
             ['@type' => 'ListItem', 'position' => 1, 'name' => '首页', 'item' => $baseUrl . '/'],
@@ -319,7 +345,8 @@ class SeoController extends Controller
                 'publisher'        => [
                     '@type' => 'Organization',
                     'name'  => '玄猫Web3',
-                    'logo'  => ['@type' => 'ImageObject', 'url' => $baseUrl . '/og/default.png'],
+                    'url'   => $baseUrl . '/',
+                    'logo'  => ['@type' => 'ImageObject', 'url' => $baseUrl . '/og/default.svg'],
                 ],
                 'keywords'         => $article['keywords'] ? implode(',', $article['keywords']) : null,
             ], fn ($v) => $v !== null && $v !== ''),
@@ -334,6 +361,8 @@ class SeoController extends Controller
             'ogType'      => 'article',
             'jsonLd'      => $jsonLd,
             'article'     => $article,
+            'related'     => $this->loadRelatedArticles((int) $article['id'], $article['category_id'] ?? null),
+            'relatedSites'=> $this->loadRelatedSites(),
         ])->header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
           ->header('X-Robots-Tag', 'index,follow');
     }
@@ -341,7 +370,7 @@ class SeoController extends Controller
     private function loadArticle(string $slug): ?array
     {
         return Cache::remember('seo.article.' . $slug, self::CACHE_TTL, function () use ($slug): ?array {
-            $a = Article::with('author')
+            $a = Article::with(['author', 'category'])
                 ->published()
                 ->where('slug', $slug)
                 ->first();
@@ -364,6 +393,8 @@ class SeoController extends Controller
                 'published_at'     => optional($a->published_at)->toIso8601String() ?? '',
                 'updated_at'       => optional($a->updated_at)->toIso8601String() ?? '',
                 'published_human'  => $a->published_at ? Carbon::parse($a->published_at)->translatedFormat('Y年n月j日') : '',
+                'category_id'      => $a->category_id !== null ? (int) $a->category_id : null,
+                'category_name'    => $a->category?->name ?? '',
             ];
         });
     }
@@ -474,6 +505,112 @@ class SeoController extends Controller
             'rating'         => (float) ($s->rating ?? 0),
             'social_links'   => $s->social_links ?: [],
             'screenshot_url' => (string) ($s->screenshot_url ?? ''),
+        ];
+    }
+
+    public function legal(Request $request, string $page): Response
+    {
+        $pages = $this->legalCopy();
+        if (!isset($pages[$page])) {
+            return response()->view('seo.notfound', [
+                'baseUrl' => PublicUrl::base(),
+                'message' => '页面不存在',
+                'title'   => '未找到页面 - 玄猫Web3',
+            ], 404)->header('X-Robots-Tag', 'noindex,follow');
+        }
+
+        $copy = $pages[$page];
+        $baseUrl = PublicUrl::base();
+        $canonical = $baseUrl . '/' . $page;
+
+        return response()->view('seo.legal', [
+            'baseUrl'     => $baseUrl,
+            'title'       => $copy['title'] . ' - 玄猫Web3',
+            'description' => $copy['description'],
+            'canonical'   => $canonical,
+            'ogImage'     => PublicUrl::of('/og/default.svg'),
+            'jsonLd'      => [[
+                '@context' => 'https://schema.org',
+                '@type'    => 'WebPage',
+                'name'     => $copy['title'],
+                'url'      => $canonical,
+            ]],
+            'heading'     => $copy['title'],
+            'paragraphs'  => $copy['paragraphs'],
+        ])->header('Cache-Control', 'public, max-age=3600')
+          ->header('X-Robots-Tag', 'index,follow');
+    }
+
+    private function loadRelatedArticles(int $articleId, ?int $categoryId): array
+    {
+        $q = Article::query()->published()->where('id', '!=', $articleId);
+        if ($categoryId) {
+            $q->where('category_id', $categoryId);
+        }
+        return $q->orderByDesc('published_at')->limit(4)->get(['title', 'slug', 'excerpt'])->map(fn (Article $a) => [
+            'title'   => (string) $a->title,
+            'slug'    => (string) $a->slug,
+            'excerpt' => Str::limit(trim((string) ($a->excerpt ?? '')), 80),
+        ])->all();
+    }
+
+    private function loadRelatedSites(): array
+    {
+        return NavSite::query()
+            ->where('is_recommended', true)
+            ->orderBy('sort_order')
+            ->limit(6)
+            ->get(['id', 'name', 'url', 'description'])
+            ->map(fn (NavSite $s) => [
+                'id'          => (int) $s->id,
+                'name'        => $s->name,
+                'url'         => $s->url,
+                'description' => (string) ($s->description ?? ''),
+            ])
+            ->all();
+    }
+
+    private function legalCopy(): array
+    {
+        return [
+            'about' => [
+                'title' => '关于我们',
+                'description' => '玄猫Web3 是面向中文用户的 Web3 导航与资讯站点，整理交易所、DeFi、钱包与行业文章。',
+                'paragraphs' => [
+                    '玄猫Web3（xuaweb3.com）提供 Web3 项目导航、项目资料与行业资讯，帮助读者更快找到交易所、DeFi、钱包、L2 与安全工具。',
+                    '导航条目由编辑人工整理并持续更新；资讯内容包含编辑撰稿与经审核的 AI 辅助稿，发布前需核对事实、标题与摘要。',
+                    '本站不提供投资建议，亦不托管数字资产。访问外部协议或交易所前，请自行核验域名与合约地址。',
+                ],
+            ],
+            'contact' => [
+                'title' => '联系我们',
+                'description' => '通过邮箱联系玄猫Web3 编辑团队，反馈导航纠错、合作或内容问题。',
+                'paragraphs' => [
+                    '内容纠错、导航更新或合作请发送邮件至 hello@xuaweb3.com，并注明页面 URL 与具体问题。',
+                    '我们通常在 5 个工作日内回复。请勿在邮件中发送助记词、私钥或验证码。',
+                    '如需下架或版权沟通，请使用相同邮箱并附权属说明。',
+                ],
+            ],
+            'privacy' => [
+                'title' => '隐私政策',
+                'description' => '玄猫Web3 隐私政策：说明访问日志、Cookie 与第三方统计的使用范围。',
+                'paragraphs' => [
+                    '访问本站时，服务器可能记录 IP、User-Agent 与请求路径，用于故障排查、防滥用与访问统计。',
+                    '本地收藏/访问次数保存在你的浏览器 localStorage，不会上传到我们的服务器。',
+                    '我们可能使用匿名化流量统计。本站不出售个人数据。如使用 Cloudflare 等 CDN，其日志政策以其官网为准。',
+                    '外链跳转至第三方站点后，适用该站自己的隐私政策。',
+                ],
+            ],
+            'terms' => [
+                'title' => '使用条款',
+                'description' => '玄猫Web3 使用条款：内容仅供参考，不构成投资建议，外链可能含推广关系。',
+                'paragraphs' => [
+                    '本站内容仅供信息参考，不构成投资、法律或税务建议。数字资产存在损失本金的风险。',
+                    '部分外链可能包含推荐/联盟参数。我们会在相关页面标明推广披露；你仍应独立判断。',
+                    '禁止利用本站从事非法活动、批量抓取未授权数据或干扰服务。我们可限制滥用访问。',
+                    '本条款自发布之日起生效，更新后以本页最新文本为准。',
+                ],
+            ],
         ];
     }
 }

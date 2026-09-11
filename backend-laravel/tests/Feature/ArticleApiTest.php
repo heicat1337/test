@@ -119,6 +119,17 @@ describe('GET /api/v1/articles/by-slug/{slug}', function () {
         $r = $this->getJson("/api/v1/articles/by-slug/{$a->slug}");
         $r->assertStatus(404);
     });
+
+    it('falls back featured_image and includes related', function () {
+        $a = makeArticle(['title' => 'MainA', 'slug' => 'main-' . uniqid()]);
+        $sib = makeArticle(['title' => 'RelatedB', 'slug' => 'rel-' . uniqid()]);
+
+        $r = $this->getJson("/api/v1/articles/by-slug/{$a->slug}");
+        $r->assertOk();
+        expect($r->json('data.featured_image'))->toContain('/og/default.svg');
+        $relatedTitles = collect($r->json('data.related'))->pluck('title')->all();
+        expect($relatedTitles)->toContain($sib->title);
+    });
 });
 
 describe('keywords mutator', function () {

@@ -41,6 +41,15 @@ export interface Article {
   published_at: string
   view_count: number
   is_featured: boolean
+  featured_image?: string
+  is_ai_generated?: boolean
+  related?: Article[]
+  related_sites?: Array<{
+    id: number
+    name: string
+    url: string
+    description: string
+  }>
   tags?: string[]
 }
 

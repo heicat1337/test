@@ -59,7 +59,8 @@ function seo_inject_spa_head(
     string $canonical,
     array $jsonLd,
     string $ogType = 'website',
-    string $ogImage = ''
+    string $ogImage = '',
+    string $appInner = ''
 ): string {
     $titleEsc = h($title);
     $descEsc = h($description);
@@ -114,10 +115,11 @@ function seo_inject_spa_head(
         '<meta name="twitter:title" content="' . $titleEsc . '" />',
         '<meta name="twitter:description" content="' . $descEsc . '" />',
     ];
-    if ($ogImageEsc !== '') {
-        $inject[] = '<meta property="og:image" content="' . $ogImageEsc . '" />';
-        $inject[] = '<meta name="twitter:image" content="' . $ogImageEsc . '" />';
+    if ($ogImageEsc === '') {
+        $ogImageEsc = h(geo_public_url('/og/default.svg'));
     }
+    $inject[] = '<meta property="og:image" content="' . $ogImageEsc . '" />';
+    $inject[] = '<meta name="twitter:image" content="' . $ogImageEsc . '" />';
     foreach ($jsonLd as $block) {
         $inject[] = '<script type="application/ld+json">'
             . json_encode($block, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -126,6 +128,17 @@ function seo_inject_spa_head(
 
     $headExtra = implode("\n    ", $inject);
     $html = preg_replace('/<\/head>/i', "    {$headExtra}\n  </head>", $html, 1);
+
+    if ($appInner !== '') {
+        $start = strpos($html, '<div id="app">');
+        $scriptPos = strpos($html, '<script');
+        if ($start !== false && $scriptPos !== false && $scriptPos > $start) {
+            $html = substr($html, 0, $start)
+                . '<div id="app">' . $appInner . '</div>' . "\n    "
+                . substr($html, $scriptPos);
+        }
+    }
+
     return $html;
 }
 
@@ -135,7 +148,8 @@ function seo_try_output_shell(
     string $canonical,
     array $jsonLd,
     string $ogType = 'website',
-    string $ogImage = ''
+    string $ogImage = '',
+    string $appInner = ''
 ): bool {
     if (!seo_want_shell()) {
         return false;
@@ -145,7 +159,7 @@ function seo_try_output_shell(
         return false;
     }
     header('Cache-Control: no-cache, must-revalidate');
-    echo seo_inject_spa_head($shell, $title, $description, $canonical, $jsonLd, $ogType, $ogImage);
+    echo seo_inject_spa_head($shell, $title, $description, $canonical, $jsonLd, $ogType, $ogImage, $appInner);
     return true;
 }
 
@@ -159,6 +173,23 @@ function seo_plain_text(string $text, int $max = 160): string
         return mb_substr($text, 0, $max - 3) . '...';
     }
     return $text;
+}
+
+function seo_nav_snapshot(array $cats, string $heading, string $lead): string
+{
+    $html = '<main><h1>' . h($heading) . '</h1><p>' . h($lead) . '</p>';
+    foreach ($cats as $cat) {
+        $html .= '<section><h2>' . h(($cat['icon'] ?? '') . ' ' . $cat['name']) . '</h2><ul>';
+        foreach ($cat['sites'] ?? [] as $site) {
+            $html .= '<li><a href="' . h($site['url'] ?? '#') . '">' . h($site['name'] ?? '') . '</a>';
+            if (!empty($site['description'])) {
+                $html .= ' — ' . h($site['description']);
+            }
+            $html .= '</li>';
+        }
+        $html .= '</ul></section>';
+    }
+    return $html . '</main>';
 }
 
 function seo_serialize_site_row(array $row): array
@@ -301,9 +332,11 @@ function emit_head(string $title, string $description, string $canonical, array 
     echo '<meta property="og:description" content="' . h($description) . '">' . "\n";
     echo '<meta property="og:type" content="' . h($ogType) . '">' . "\n";
     echo '<meta property="og:url" content="' . h($canonical) . '">' . "\n";
+    echo '<meta property="og:image" content="' . h(geo_public_url('/og/default.svg')) . '">' . "\n";
     echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
     echo '<meta name="twitter:title" content="' . h($title) . '">' . "\n";
     echo '<meta name="twitter:description" content="' . h($description) . '">' . "\n";
+    echo '<meta name="twitter:image" content="' . h(geo_public_url('/og/default.svg')) . '">' . "\n";
     echo $jsonLdBlocks;
     echo '<style>
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0a0e1a;color:#e2e8f0;margin:0;padding:0;line-height:1.6}
@@ -318,20 +351,20 @@ function emit_head(string $title, string $description, string $canonical, array 
         .cat{margin-bottom:36px}
         .cat-h{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:16px}
         .cat-icon{font-size:20px}
-        .cat-meta{margin-left:auto;color:#64748b;font-size:12px}
+        .cat-meta{margin-left:auto;color:#94a3b8;font-size:12px}
         ul.sites{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
         ul.sites li{padding:14px 16px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.04)}
         ul.sites li a{color:#e2e8f0;font-weight:600;text-decoration:none;font-size:15px}
         ul.sites li a:hover{color:#00d4ff;text-decoration:underline}
         ul.sites li p{color:#94a3b8;font-size:13px;margin:6px 0 0}
         ul.sites li .badge{display:inline-block;background:rgba(0,255,136,.12);color:#00ff88;font-size:11px;padding:2px 6px;border-radius:999px;margin-left:6px}
-        nav.crumb{font-size:13px;color:#64748b;margin-bottom:12px}
+        nav.crumb{font-size:13px;color:#94a3b8;margin-bottom:12px}
         nav.crumb a{color:#94a3b8;text-decoration:none}
         nav.crumb a:hover{color:#00d4ff}
         nav.cat-cross{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
         nav.cat-cross a{padding:6px 12px;border:1px solid rgba(255,255,255,.08);border-radius:999px;color:#94a3b8;text-decoration:none;font-size:13px}
         nav.cat-cross a:hover{color:#00d4ff;border-color:rgba(0,212,255,.3)}
-        footer{margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,.08);text-align:center;color:#64748b;font-size:13px}
+        footer{margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,.08);text-align:center;color:#94a3b8;font-size:13px}
     </style>' . "\n";
     echo '</head><body><div class="wrap">' . "\n";
     echo '<header class="site-h">' . "\n";
@@ -342,7 +375,12 @@ function emit_head(string $title, string $description, string $canonical, array 
 
 function emit_foot(string $baseUrl): void
 {
-    echo '<footer>玄猫Web3 — 探索去中心化世界 · <a href="' . h($baseUrl) . '/sitemap.xml" style="color:#94a3b8">sitemap</a></footer>' . "\n";
+    echo '<footer>玄猫Web3 — 探索去中心化世界'
+        . ' · <a href="' . h($baseUrl) . '/about" style="color:#94a3b8">关于</a>'
+        . ' · <a href="' . h($baseUrl) . '/contact" style="color:#94a3b8">联系</a>'
+        . ' · <a href="' . h($baseUrl) . '/privacy" style="color:#94a3b8">隐私</a>'
+        . ' · <a href="' . h($baseUrl) . '/terms" style="color:#94a3b8">条款</a>'
+        . ' · <a href="' . h($baseUrl) . '/sitemap.xml" style="color:#94a3b8">sitemap</a></footer>' . "\n";
     echo '</div></body></html>';
 }
 
@@ -386,6 +424,27 @@ if ($route === 'home') {
     $title = '玄猫Web3 - Web3 行业资讯与导航平台';
     $description = '玄猫Web3是专业的Web3行业资讯与导航平台，提供区块链、DeFi、NFT、加密货币、交易所、钱包、L2、跨链桥等领域的最新动态、深度分析和项目评测。';
     $canonical = $baseUrl . '/';
+    $q = trim((string) ($_GET['q'] ?? ''));
+    if ($q !== '') {
+        $needle = mb_strtolower($q);
+        $filtered = [];
+        foreach ($cats as $c) {
+            $sites = [];
+            foreach ($c['sites'] as $s) {
+                $hay = mb_strtolower($c['name'] . ' ' . $s['name'] . ' ' . ($s['description'] ?? '') . ' ' . ($s['url'] ?? ''));
+                if (mb_strpos($hay, $needle) !== false) {
+                    $sites[] = $s;
+                }
+            }
+            if ($sites) {
+                $c['sites'] = $sites;
+                $filtered[] = $c;
+            } elseif (mb_strpos(mb_strtolower($c['name']), $needle) !== false) {
+                $filtered[] = $c;
+            }
+        }
+        $cats = $filtered;
+    }
 
     $totalSites = 0;
     foreach ($cats as $c) {
@@ -407,6 +466,13 @@ if ($route === 'home') {
         ],
         [
             '@context' => 'https://schema.org',
+            '@type' => 'Organization',
+            'name' => '玄猫Web3',
+            'url' => $canonical,
+            'logo' => $baseUrl . '/og/default.svg',
+        ],
+        [
+            '@context' => 'https://schema.org',
             '@type' => 'CollectionPage',
             'name' => '玄猫Web3 导航',
             'url' => $canonical,
@@ -421,7 +487,7 @@ if ($route === 'home') {
         ],
     ];
 
-    if (seo_try_output_shell($title, $description, $canonical, $jsonLd)) {
+    if (seo_try_output_shell($title, $description, $canonical, $jsonLd, 'website', '', seo_nav_snapshot($cats, $title, $description))) {
         exit;
     }
 
@@ -493,7 +559,7 @@ if ($route === 'category') {
         }, array_keys($cat['sites']), $cat['sites']),
     ];
 
-    if (seo_try_output_shell($title, $description, $canonical, [$breadcrumb, $itemList])) {
+    if (seo_try_output_shell($title, $description, $canonical, [$breadcrumb, $itemList], 'website', '', seo_nav_snapshot([$cat], $title, $description))) {
         exit;
     }
 
@@ -673,7 +739,12 @@ if ($route === 'articles') {
         ],
     ];
 
-    if (seo_try_output_shell($listTitle, $listDesc, $canonical, [$itemList])) {
+    $listInner = '<main><h1>' . h($listTitle) . '</h1><p>' . h($listDesc) . '</p><ul>';
+    foreach ($items as $row) {
+        $listInner .= '<li><a href="' . h($baseUrl . '/articles/' . $row['slug']) . '">' . h($row['title']) . '</a></li>';
+    }
+    $listInner .= '</ul></main>';
+    if (seo_try_output_shell($listTitle, $listDesc, $canonical, [$itemList], 'website', '', $listInner)) {
         exit;
     }
 
@@ -768,7 +839,9 @@ if ($route === 'article') {
         $jsonLd[0]['image'] = $ogImage;
     }
 
-    if (seo_try_output_shell($title, $description, $canonical, $jsonLd, 'article', $ogImage)) {
+    $articleInner = '<article><h1>' . h($article['title']) . '</h1><p>' . h($description) . '</p><p>'
+        . h(seo_plain_text((string) $article['content'], 1800)) . '</p></article>';
+    if (seo_try_output_shell($title, $description, $canonical, $jsonLd, 'article', $ogImage, $articleInner)) {
         exit;
     }
 

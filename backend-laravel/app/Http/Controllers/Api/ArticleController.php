@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Article;
+use App\Models\NavSite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,14 +21,15 @@ class ArticleController extends Controller
     {
         $page    = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 20)));
-        $status  = $request->query('status', 'published');
+        // 公开列表只返回已发布，忽略客户端 status，避免草稿泄露
+        $status  = 'published';
 
         $q = Article::query()
             ->select([
                 'articles.id', 'articles.title', 'articles.slug', 'articles.excerpt',
                 'articles.category_id', 'articles.author_id', 'articles.status',
                 'articles.review_status', 'articles.view_count', 'articles.is_featured',
-                'articles.keywords', 'articles.published_at',
+                'articles.keywords', 'articles.published_at', 'articles.featured_image',
                 'articles.created_at', 'articles.updated_at',
             ])
             ->with([
@@ -75,7 +77,31 @@ class ArticleController extends Controller
         Article::where('id', $article->id)->increment('view_count');
         $article->view_count = ($article->view_count ?? 0) + 1;
 
-        return $this->success($this->serializeFull($article), 30, $request);
+        $payload = $this->serializeFull($article);
+        $payload['related'] = Article::query()
+            ->published()
+            ->where('id', '!=', $article->id)
+            ->when($article->category_id, fn ($q) => $q->where('category_id', $article->category_id))
+            ->orderByDesc('published_at')
+            ->limit(4)
+            ->get()
+            ->map(fn (Article $a) => $this->serializeListItem($a))
+            ->values()
+            ->all();
+        $payload['related_sites'] = NavSite::query()
+            ->where('is_recommended', true)
+            ->orderBy('sort_order')
+            ->limit(6)
+            ->get(['id', 'name', 'url', 'description'])
+            ->map(fn (NavSite $s) => [
+                'id'          => (int) $s->id,
+                'name'        => $s->name,
+                'url'         => $s->url,
+                'description' => (string) ($s->description ?? ''),
+            ])
+            ->all();
+
+        return $this->success($payload, 30, $request);
     }
 
     private function serializeListItem(Article $a): array
@@ -93,7 +119,8 @@ class ArticleController extends Controller
             'review_status'  => (string) $a->review_status,
             'view_count'     => (int) ($a->view_count ?? 0),
             'is_featured'    => (bool) $a->is_featured,
-            'tags'           => $a->keywords,  // mutator → array
+            'tags'           => $a->keywords,
+            'featured_image' => $this->featuredImage($a),
             'published_at'   => optional($a->published_at)->toAtomString(),
             'created_at'     => optional($a->created_at)->toAtomString(),
             'updated_at'     => optional($a->updated_at)->toAtomString(),
@@ -108,7 +135,7 @@ class ArticleController extends Controller
             'meta_description' => (string) ($a->meta_description ?? ''),
             'original_keyword' => (string) ($a->original_keyword ?? ''),
             'is_ai_generated'  => (bool) $a->is_ai_generated,
-            'featured_image'   => (string) ($a->featured_image ?? ''),
+            'featured_image'   => $this->featuredImage($a),
             'like_count'       => (int) ($a->like_count ?? 0),
             'comment_count'    => (int) ($a->comment_count ?? 0),
             'category'         => $a->category ? [
@@ -123,6 +150,12 @@ class ArticleController extends Controller
                 'bio'    => (string) ($a->author->bio ?? ''),
             ] : null,
         ]);
+    }
+
+    private function featuredImage(Article $a): string
+    {
+        $url = trim((string) ($a->featured_image ?? ''));
+        return $url !== '' ? $url : \App\Support\PublicUrl::of('/og/default.svg');
     }
 
     private function success(mixed $data, int $cacheSeconds, Request $request): JsonResponse

@@ -45,9 +45,9 @@ class ArticleForm
 
                             Textarea::make('excerpt')
                                 ->label('摘要')
-                                ->rows(2)
+                                ->rows(3)
                                 ->maxLength(500)
-                                ->helperText('展示在文章卡片上，留空将自动截取正文前 200 字'),
+                                ->helperText('请人工改写导语，突出本文差异；勿直接粘贴正文截断。AI 稿必须改写后再发布。'),
 
                             Textarea::make('content')
                                 ->label('正文')
@@ -98,6 +98,7 @@ class ArticleForm
                                 ->label('封面图 URL')
                                 ->url()
                                 ->maxLength(500)
+                                ->helperText('列表/分享图。留空则使用默认品牌图 /og/default.svg。发布前建议补上本文配图。')
                                 ->columnSpanFull(),
                         ])
                         ->columns(2),
@@ -134,7 +135,7 @@ class ArticleForm
                             Toggle::make('is_ai_generated')
                                 ->label('AI 生成')
                                 ->disabled()
-                                ->helperText('由生成任务自动写入'),
+                                ->helperText('AI 稿发布前请核对：事实、标题是否夸大、摘要是否与正文一致且互不相同。'),
 
                             TextInput::make('view_count')
                                 ->label('阅读量')

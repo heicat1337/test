@@ -68,10 +68,12 @@ export function useMeta(getter: () => MetaConfig) {
     if (cfg.canonical) {
       setOrCreateMeta('property', 'og:url', cfg.canonical)
     }
-    if (cfg.ogImage) setOrCreateMeta('property', 'og:image', cfg.ogImage)
+    const ogImage = cfg.ogImage || 'https://xuaweb3.com/og/default.svg'
+    setOrCreateMeta('property', 'og:image', ogImage)
     setOrCreateMeta('name', 'twitter:card', 'summary_large_image')
     setOrCreateMeta('name', 'twitter:title', cfg.ogTitle || title)
     setOrCreateMeta('name', 'twitter:description', cfg.ogDescription || description)
+    setOrCreateMeta('name', 'twitter:image', ogImage)
 
     if (cfg.jsonLd) {
       const blocks = Array.isArray(cfg.jsonLd) ? cfg.jsonLd : [cfg.jsonLd]

@@ -128,6 +128,13 @@ class ArticlesTable
                     ->searchable()
                     ->preload(),
 
+                SelectFilter::make('is_ai_generated')
+                    ->label('来源')
+                    ->options([
+                        '1' => 'AI 稿（待人工审校）',
+                        '0' => '人工稿',
+                    ]),
+
                 TrashedFilter::make(),
             ])
             ->recordActions([
@@ -150,6 +157,9 @@ class ArticlesTable
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
                     ->visible(fn ($record) => $record && $record->review_status === 'pending' && !$record->trashed())
+                    ->requiresConfirmation()
+                    ->modalHeading('确认已审校？')
+                    ->modalDescription('请确认已核对事实、标题与摘要差异化，尤其是 AI 生成稿。')
                     ->action(fn ($record) => $record->update(['review_status' => 'approved'])),
 
                 Action::make('reject')

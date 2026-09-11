@@ -15,18 +15,51 @@
           </div>
           <h1 class="article-title">{{ article.title }}</h1>
           <p v-if="article.author_name" class="article-author">作者：{{ article.author_name }}</p>
+          <img
+            v-if="article.featured_image"
+            class="article-cover"
+            :src="article.featured_image"
+            :alt="article.title"
+            width="1200"
+            height="630"
+          />
         </header>
 
         <div class="article-content" v-html="renderedContent"></div>
 
-        <footer class="article-footer">
-          <router-link to="/articles" class="back-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-            返回文章列表
-          </router-link>
-        </footer>
+        <aside class="article-cta">
+          <p class="disclosure">
+            <strong>推广披露：</strong>文中或下方推荐的外部网站可能含推荐/联盟链接。本站可能因此获得佣金，这不会额外增加你的费用。内容不构成投资建议。
+          </p>
+          <div class="cta-row">
+            <router-link to="/articles" class="back-link">← 返回文章目录</router-link>
+            <router-link to="/" class="back-link">浏览 Web3 导航</router-link>
+          </div>
+          <div class="share-row">
+            <span>分享</span>
+            <button type="button" @click="copyLink">{{ copied ? '已复制' : '复制链接' }}</button>
+            <a :href="twitterShare" target="_blank" rel="noopener noreferrer">X</a>
+            <a :href="weiboShare" target="_blank" rel="noopener noreferrer">微博</a>
+          </div>
+          <template v-if="related.length">
+            <h2>同分类文章</h2>
+            <ul class="related-list">
+              <li v-for="item in related" :key="item.slug">
+                <router-link :to="`/articles/${item.slug}`">{{ item.title }}</router-link>
+                <p v-if="item.excerpt">{{ item.excerpt }}</p>
+              </li>
+            </ul>
+          </template>
+          <template v-if="relatedSites.length">
+            <h2>相关导航项目</h2>
+            <ul class="related-list">
+              <li v-for="site in relatedSites" :key="site.id">
+                <router-link :to="`/project/${site.id}`">{{ site.name }}</router-link>
+                <p v-if="site.description">{{ site.description }}</p>
+              </li>
+            </ul>
+          </template>
+        </aside>
       </article>
     </template>
 
@@ -39,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import type { Article } from '../types'
@@ -48,7 +81,10 @@ import { useMeta } from '../composables/useMeta'
 
 const route = useRoute()
 const article = ref<Article | null>(null)
+const related = ref<Article[]>([])
+const relatedSites = ref<NonNullable<Article['related_sites']>>([])
 const loading = ref(true)
+const copied = ref(false)
 
 const renderedContent = computed(() => {
   if (!article.value?.content) return ''
@@ -56,6 +92,13 @@ const renderedContent = computed(() => {
 })
 
 const slug = computed(() => String(route.params.slug || ''))
+const pageUrl = computed(() => `https://xuaweb3.com/articles/${article.value?.slug || slug.value}`)
+const twitterShare = computed(() =>
+  `https://twitter.com/intent/tweet?url=${encodeURIComponent(pageUrl.value)}&text=${encodeURIComponent(article.value?.title || '')}`
+)
+const weiboShare = computed(() =>
+  `https://service.weibo.com/share/share.php?url=${encodeURIComponent(pageUrl.value)}&title=${encodeURIComponent(article.value?.title || '')}`
+)
 
 useMeta(() => {
   if (!article.value) {
@@ -64,10 +107,12 @@ useMeta(() => {
       description: '玄猫Web3 Web3 行业资讯与深度分析',
       canonical: `https://xuaweb3.com/articles/${slug.value}`,
       ogType: 'article',
+      ogImage: 'https://xuaweb3.com/og/default.svg',
     }
   }
   const a = article.value
   const description = (a.excerpt || a.content || '').replace(/\s+/g, ' ').trim().slice(0, 160)
+  const ogImage = a.featured_image || 'https://xuaweb3.com/og/default.svg'
   return {
     title: `${a.title} - 玄猫Web3`,
     description,
@@ -75,12 +120,14 @@ useMeta(() => {
     ogTitle: a.title,
     ogDescription: description,
     ogType: 'article',
+    ogImage,
     jsonLd: [
       {
         '@context': 'https://schema.org',
         '@type': 'NewsArticle',
         headline: a.title,
         description,
+        image: ogImage,
         datePublished: a.published_at,
         author: { '@type': 'Person', name: a.author_name || '玄猫Web3' },
         mainEntityOfPage: `https://xuaweb3.com/articles/${a.slug}`,
@@ -95,16 +142,33 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-onMounted(async () => {
+async function copyLink() {
   try {
-    const slug = route.params.slug as string
-    article.value = await fetchArticleBySlug(slug)
+    await navigator.clipboard.writeText(pageUrl.value)
+    copied.value = true
+    window.setTimeout(() => { copied.value = false }, 2000)
+  } catch {
+    copied.value = false
+  }
+}
+
+watch(slug, async (next) => {
+  if (!next) return
+  loading.value = true
+  copied.value = false
+  try {
+    const data = await fetchArticleBySlug(next)
+    article.value = data
+    related.value = data.related || []
+    relatedSites.value = data.related_sites || []
   } catch {
     article.value = null
+    related.value = []
+    relatedSites.value = []
   } finally {
     loading.value = false
   }
-})
+}, { immediate: true })
 </script>
 
 <style scoped lang="scss">
@@ -172,6 +236,14 @@ onMounted(async () => {
 .article-author {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.article-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 20px;
+  border-radius: var(--radius-sm);
 }
 
 .article-content {
@@ -251,10 +323,70 @@ onMounted(async () => {
   }
 }
 
-.article-footer {
+.article-cta {
   margin-top: 40px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border-color);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+
+  h2 {
+    font-size: 16px;
+    margin: 20px 0 8px;
+  }
+}
+
+.disclosure {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+
+.cta-row, .share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.share-row {
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  button, a {
+    color: var(--neon-blue);
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    &:hover { color: var(--neon-purple); }
+  }
+}
+
+.related-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    margin-bottom: 10px;
+  }
+
+  a {
+    color: var(--text-primary);
+    text-decoration: none;
+    &:hover { color: var(--neon-blue); }
+  }
+
+  p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
 }
 
 .back-link {

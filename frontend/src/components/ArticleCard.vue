@@ -1,6 +1,14 @@
 <template>
   <router-link :to="`/articles/${article.slug}`" class="article-card">
     <div class="card-glow"></div>
+    <img
+      v-if="article.featured_image"
+      class="card-cover"
+      :src="article.featured_image"
+      :alt="article.title"
+      width="640"
+      height="200"
+    />
     <div class="card-body">
       <div class="card-meta">
         <span class="card-date">{{ formatDate(article.published_at) }}</span>
@@ -26,7 +34,7 @@ function formatDate(dateStr: string): string {
 <style scoped lang="scss">
 .article-card {
   display: block;
-  padding: 20px;
+  padding: 0;
   border-radius: var(--card-radius);
   border: 1px solid var(--border-color);
   background: var(--bg-card);
@@ -54,7 +62,15 @@ function formatDate(dateStr: string): string {
   transition: opacity var(--transition-base);
 }
 
-.card-body { position: relative; }
+.card-cover {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.card-body { position: relative; padding: 20px; }
 
 .card-meta {
   display: flex;

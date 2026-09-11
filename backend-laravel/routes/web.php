@@ -24,4 +24,5 @@ Route::prefix('__seo')->name('seo.')->group(function () {
     Route::get('project/{id}',      [SeoController::class, 'project'])->name('project')->where('id', '\d+');
     Route::get('articles',          [SeoController::class, 'articleIndex'])->name('articles');
     Route::get('article/{slug}',    [SeoController::class, 'article'])->name('article');
+    Route::get('legal/{page}',     [SeoController::class, 'legal'])->name('legal')->where('page', 'about|contact|privacy|terms');
 });

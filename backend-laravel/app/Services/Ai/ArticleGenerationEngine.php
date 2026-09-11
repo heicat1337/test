@@ -99,7 +99,7 @@ class ArticleGenerationEngine
                 $article = Article::create([
                     'title'            => $finalTitle,
                     'slug'             => $this->generateUniqueSlug(),
-                    'excerpt'          => mb_substr(strip_tags($content), 0, 200),
+                    'excerpt'          => $this->makeExcerpt($content),
                     'content'          => $content,
                     'category_id'      => $task->fixed_category_id ?: $this->fallbackCategoryId(),
                     'author_id'        => $task->custom_author_id ?: $task->author_id ?: $this->fallbackAuthorId(),
@@ -297,5 +297,19 @@ class ArticleGenerationEngine
     {
         // TODO: 图片库与 RSS 配图注入逻辑
         return $content;
+    }
+
+    /** 用前两句做摘要，避免统一截到 200 字的同质感。 */
+    protected function makeExcerpt(string $content): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', strip_tags($content)) ?? '');
+        if ($text === '') {
+            return '';
+        }
+        $parts = preg_split('/(?<=[。！？!?])\s*/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($parts) {
+            return mb_substr(implode('', array_slice($parts, 0, 2)), 0, 120);
+        }
+        return mb_substr($text, 0, 80);
     }
 }
